@@ -1,0 +1,19 @@
+# Grafana Dashboards Directory
+# Add your Grafana dashboard JSON files here
+
+# Recommended dashboards to import:
+# 1. Spring Boot Statistics (ID: 10280)
+# 2. JVM (Micrometer) (ID: 4701)
+# 3. PostgreSQL Database (ID: 9628)
+# 4. Redis Dashboard (ID: 11835)
+# 5. Arpay Notifications Custom Dashboard (create custom)
+
+# Custom Arpay Notifications Dashboard should include:
+# - Total notifications sent
+# - Delivery success/failure rates
+# - Queue depths (critical, normal, low)
+# - DLQ size over time
+# - P95/P99 latencies
+# - Circuit breaker status
+# - Redis cache hit rates
+# - Database connection pool usage

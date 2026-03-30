@@ -1,0 +1,249 @@
+# =============================================================================
+# Prometheus Alert Rules for ARPAY Notifications
+# =============================================================================
+
+groups:
+  - name: arpay-notifications-alerts
+    interval: 30s
+    rules:
+      # =============================================================================
+      # Application Availability Alerts
+      # =============================================================================
+      - alert: ArpayNotificationsDown
+        expr: up{job="arpay-notifications"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: notifications
+        annotations:
+          summary: "Arpay Notifications application is down"
+          description: "The Arpay Notifications service has been unreachable for more than 2 minutes."
+
+      # =============================================================================
+      # HTTP Error Rate Alerts
+      # =============================================================================
+      - alert: HighHTTPErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5..", job="arpay-notifications"}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count{job="arpay-notifications"}[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "High HTTP 5xx error rate"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: CriticalHTTPErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5..", job="arpay-notifications"}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count{job="arpay-notifications"}[5m]))
+          ) > 0.10
+        for: 2m
+        labels:
+          severity: critical
+          service: notifications
+        annotations:
+          summary: "Critical HTTP 5xx error rate"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 2 minutes."
+
+      # =============================================================================
+      # Response Time Alerts
+      # =============================================================================
+      - alert: HighP99Latency
+        expr: |
+          histogram_quantile(0.99, 
+            sum(rate(http_server_requests_seconds_bucket{job="arpay-notifications"}[5m])) by (le)
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "High P99 response latency"
+          description: "P99 latency is {{ $value | humanizeDuration }} over the last 10 minutes."
+
+      - alert: CriticalP99Latency
+        expr: |
+          histogram_quantile(0.99, 
+            sum(rate(http_server_requests_seconds_bucket{job="arpay-notifications"}[5m])) by (le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: notifications
+        annotations:
+          summary: "Critical P99 response latency"
+          description: "P99 latency is {{ $value | humanizeDuration }} over the last 5 minutes."
+
+      # =============================================================================
+      # JVM Memory Alerts
+      # =============================================================================
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            jvm_memory_used_bytes{area="heap", job="arpay-notifications"}
+            /
+            jvm_memory_max_bytes{area="heap", job="arpay-notifications"}
+          ) > 0.80
+        for: 10m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "High JVM heap memory usage"
+          description: "Heap memory usage is {{ $value | humanizePercentage }} on instance {{ $labels.instance }}."
+
+      - alert: CriticalMemoryUsage
+        expr: |
+          (
+            jvm_memory_used_bytes{area="heap", job="arpay-notifications"}
+            /
+            jvm_memory_max_bytes{area="heap", job="arpay-notifications"}
+          ) > 0.90
+        for: 5m
+        labels:
+          severity: critical
+          service: notifications
+        annotations:
+          summary: "Critical JVM heap memory usage"
+          description: "Heap memory usage is {{ $value | humanizePercentage }} on instance {{ $labels.instance }}."
+
+      # =============================================================================
+      # Database Connection Pool Alerts
+      # =============================================================================
+      - alert: HighDatabaseConnectionPoolUsage
+        expr: |
+          (
+            hikaricp_connections_active{job="arpay-notifications"}
+            /
+            hikaricp_connections_max{job="arpay-notifications"}
+          ) > 0.80
+        for: 10m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "High database connection pool usage"
+          description: "Connection pool usage is {{ $value | humanizePercentage }} on instance {{ $labels.instance }}."
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          (
+            hikaricp_connections_active{job="arpay-notifications"}
+            /
+            hikaricp_connections_max{job="arpay-notifications"}
+          ) > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          service: notifications
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "Connection pool usage is {{ $value | humanizePercentage }} on instance {{ $labels.instance }}."
+
+      # =============================================================================
+      # Redis Connection Alerts
+      # =============================================================================
+      - alert: RedisConnectionFailed
+        expr: |
+          spring_data_redis_connections_active{job="arpay-notifications"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: notifications
+        annotations:
+          summary: "Redis connection failed"
+          description: "No active Redis connections on instance {{ $labels.instance }}."
+
+      # =============================================================================
+      # Notification Processing Alerts
+      # =============================================================================
+      - alert: NotificationProcessingBacklog
+        expr: |
+          arpay_notifications_queue_size{queue="critical"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "Notification processing backlog"
+          description: "Critical queue has {{ $value }} pending notifications."
+
+      - alert: DLQSizeThreshold
+        expr: |
+          arpay_notifications_dlq_size > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "Dead Letter Queue size threshold exceeded"
+          description: "DLQ has {{ $value }} messages that need attention."
+
+      - alert: NotificationDeliveryFailureRate
+        expr: |
+          (
+            sum(rate(arpay_notifications_delivery_failed_total[5m]))
+            /
+            sum(rate(arpay_notifications_delivery_attempted_total[5m]))
+          ) > 0.10
+        for: 10m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "High notification delivery failure rate"
+          description: "Failure rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      # =============================================================================
+      # Circuit Breaker Alerts
+      # =============================================================================
+      - alert: PushNotificationCircuitBreakerOpen
+        expr: |
+          arpay_notifications_circuit_breaker_state{type="push"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "Push notification circuit breaker is OPEN"
+          description: "Push notifications are temporarily disabled due to failures."
+
+      # =============================================================================
+      # Disk Space Alerts (for host monitoring)
+      # =============================================================================
+      - alert: LowDiskSpace
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) < 0.20
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is {{ $value | humanizePercentage }} available on {{ $labels.instance }}."
+
+      - alert: CriticalDiskSpace
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) < 0.10
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical disk space"
+          description: "Only {{ $value | humanizePercentage }} disk space remaining on {{ $labels.instance }}."

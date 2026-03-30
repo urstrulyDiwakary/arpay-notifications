@@ -1,0 +1,84 @@
+# =============================================================================
+# ARPAY Notifications — DEV Profile
+# Optimised for local development: relaxed security, verbose logging, small pools.
+# Activate with:  SPRING_PROFILES_ACTIVE=dev  or  --spring.profiles.active=dev
+# =============================================================================
+
+spring:
+  # ── Database ────────────────────────────────────────────────────────────────
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ARPAY}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  # ── Flyway (disabled in dev — Hibernate manages schema) ─────────────────────
+  flyway:
+    enabled: false
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
+
+  # ── Mail (disabled in dev) ──────────────────────────────────────────────────
+  mail:
+    host: localhost
+    port: 1025
+
+# ── Firebase (disabled in dev) ────────────────────────────────────────────────
+firebase:
+  enabled: false
+
+# ── Worker pools (small for dev) ──────────────────────────────────────────────
+notification:
+  worker:
+    critical-threads: 2
+    normal-threads: 4
+    low-threads: 1
+    max-inflight: 50
+    queue-capacity: 100
+
+# ── Scheduler intervals ──────────────────────────────────────────────────────
+notifications:
+  simple-mode: ${NOTIFICATIONS_SIMPLE_MODE:false}
+  ratelimit:
+    enabled: false
+  dlq:
+    retry:
+      interval-ms: 60000        # 1 minute in dev
+  outbox:
+    retry:
+      interval-ms: 120000       # 2 minutes in dev
+
+# ── Logging (verbose) ────────────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.arpay: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.springframework.data.redis: DEBUG
+
+# ── Actuator (expose everything in dev) ───────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+

@@ -1,0 +1,103 @@
+# =============================================================================
+# ARPAY Notifications - Coolify Specific Docker Compose
+# Optimized for Coolify deployment on Hostinger VPS
+# Coolify will inject environment variables automatically
+# =============================================================================
+
+services:
+  app:
+    image: "${COOLIFY_CONTAINER_IMAGE:-arpay-notifications:latest}"
+    container_name: ${COOLIFY_CONTAINER_NAME:-arpay-notifications-app}
+    restart: always
+    expose:
+      - "8086"
+    environment:
+      # Spring Profile
+      - SPRING_PROFILES_ACTIVE=production
+      
+      # Server Configuration
+      - SERVER_PORT=8086
+      
+      # Database - Coolify will inject these
+      - SPRING_DATASOURCE_URL=${DATABASE_URL}
+      - SPRING_DATASOURCE_USERNAME=${DATABASE_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DATABASE_PASSWORD}
+      
+      # Redis - Coolify will inject these
+      - SPRING_DATA_REDIS_HOST=${REDIS_HOST}
+      - SPRING_DATA_REDIS_PORT=${REDIS_PORT:-6379}
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # Firebase Configuration
+      - FIREBASE_ENABLED=true
+      - FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/app/firebase/firebase-service-account.json
+      
+      # JWT Security - MUST set in Coolify environment
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRATION_MS=172800000
+      
+      # Internal API Authentication - MUST set in Coolify
+      - INTERNAL_API_KEYS=${INTERNAL_API_KEYS}
+      
+      # Email Configuration
+      - SPRING_MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
+      - SPRING_MAIL_PORT=${MAIL_PORT:-587}
+      - SPRING_MAIL_USERNAME=${MAIL_USERNAME}
+      - SPRING_MAIL_PASSWORD=${MAIL_PASSWORD}
+      
+      # CORS Configuration
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://arpay.anantarealty.in,https://api.arpay.anantarealty.in}
+      
+      # Rate Limiting
+      - NOTIFICATIONS_RATELIMIT_ENABLED=true
+      - NOTIFICATIONS_RATELIMIT_GLOBAL_PERMITS_PER_SECOND=1000
+      - NOTIFICATIONS_RATELIMIT_PER_ENDPOINT_PERMITS_PER_SECOND=100
+      - NOTIFICATIONS_RATELIMIT_PER_CLIENT_PERMITS_PER_SECOND=10
+      
+      # Logging
+      - LOGGING_LEVEL_ROOT=INFO
+      - LOGGING_LEVEL_COM_ARPAY=INFO
+      
+      # Arpay Backend
+      - ARPAY_BACKEND_URL=${ARPAY_BACKEND_URL:-https://api.arpay.anantarealty.in}
+    volumes:
+      # Firebase credentials (add as persistent storage in Coolify)
+      - type: volume
+        source: firebase-credentials
+        target: /app/firebase
+        read_only: true
+      # Application logs
+      - type: volume
+        source: app-logs
+        target: /app/logs
+    networks:
+      - coolify
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      labels:
+        - "coolify.managed=true"
+        - "coolify.application.id=arpay-notifications"
+
+volumes:
+  firebase-credentials:
+    name: arpay-firebase-credentials
+    external: false
+  app-logs:
+    name: arpay-app-logs
+    external: false
+
+networks:
+  coolify:
+    external: true

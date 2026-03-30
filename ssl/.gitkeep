@@ -1,0 +1,5 @@
+# SSL certificates directory
+# Mount your Let's Encrypt or custom SSL certificates here
+# Expected files:
+# - fullchain.pem (or cert.pem)
+# - privkey.pem (private key)

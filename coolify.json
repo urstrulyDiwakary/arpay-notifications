@@ -1,0 +1,110 @@
+{
+  "name": "arpay-notifications",
+  "description": "Arpay Notifications Microservice - Production Ready",
+  "version": "1.0.0",
+  "services": {
+    "app": {
+      "type": "application",
+      "build": {
+        "type": "dockerfile",
+        "dockerfile": "Dockerfile",
+        "context": "."
+      },
+      "environment": {
+        "SPRING_PROFILES_ACTIVE": "production",
+        "SERVER_PORT": "8086"
+      },
+      "health_check": {
+        "endpoint": "/actuator/health",
+        "interval": 30,
+        "timeout": 10,
+        "retries": 3,
+        "start_period": 90
+      },
+      "resources": {
+        "cpu_limit": "2.0",
+        "memory_limit": "2G",
+        "cpu_reservation": "0.5",
+        "memory_reservation": "512M"
+      },
+      "scaling": {
+        "min_replicas": 1,
+        "max_replicas": 3,
+        "cpu_threshold": 70,
+        "memory_threshold": 80
+      },
+      "persistence": [
+        {
+          "name": "app-logs",
+          "mount_path": "/app/logs",
+          "size": "5G"
+        },
+        {
+          "name": "firebase-credentials",
+          "mount_path": "/app/firebase",
+          "type": "secret"
+        }
+      ],
+      "networks": {
+        "expose": true,
+        "port": 8086,
+        "protocol": "http"
+      }
+    },
+    "postgres": {
+      "type": "database",
+      "engine": "postgresql",
+      "version": "16-alpine",
+      "environment": {
+        "POSTGRES_DB": "ARPAY",
+        "POSTGRES_USER": "arpay_notifications"
+      },
+      "resources": {
+        "cpu_limit": "1.0",
+        "memory_limit": "1G",
+        "cpu_reservation": "0.25",
+        "memory_reservation": "256M"
+      },
+      "persistence": {
+        "enabled": true,
+        "size": "20G"
+      },
+      "backup": {
+        "enabled": true,
+        "schedule": "0 2 * * *",
+        "retention_days": 7
+      }
+    },
+    "redis": {
+      "type": "cache",
+      "engine": "redis",
+      "version": "7-alpine",
+      "resources": {
+        "cpu_limit": "0.5",
+        "memory_limit": "512M",
+        "cpu_reservation": "0.1",
+        "memory_reservation": "128M"
+      },
+      "persistence": {
+        "enabled": true,
+        "size": "2G"
+      }
+    }
+  },
+  "network": {
+    "name": "arpay-notifications-network",
+    "type": "bridge"
+  },
+  "domain": {
+    "enabled": true,
+    "ssl": {
+      "enabled": true,
+      "provider": "letsencrypt"
+    }
+  },
+  "monitoring": {
+    "health_check": true,
+    "metrics": true,
+    "logs": true
+  }
+}

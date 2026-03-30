@@ -1,0 +1,5 @@
+# Database Initialization Scripts Directory
+# Place SQL scripts here that should run on first database startup
+# Scripts are executed in alphabetical order
+
+# Example: 01-grant-permissions.sql

@@ -1,0 +1,103 @@
+# =============================================================================
+# ARPAY Notifications - .gitignore
+# Prevent sensitive files from being committed to version control
+# =============================================================================
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.production
+.env.staging
+*.env
+
+# Firebase credentials
+firebase/firebase-service-account.json
+**/firebase-service-account.json
+**/*.p12
+**/*.jks
+
+# SSL Certificates
+certs/
+**/*.crt
+**/*.pem
+**/*.key
+**/keystore.p12
+
+# Logs
+logs/
+*.log
+log/
+/application.log
+
+# Build outputs
+target/
+build/
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+springBeans
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+docker-compose.override.yml
+.backups/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Test outputs
+test-results/
+coverage/
+.mvn/timing.properties
+
+# Sensitive configuration
+**/application-local.properties
+**/application-dev.properties
+!src/main/resources/application.properties
+!src/main/resources/application-production.properties
+
+# Database backups
+backups/
+*.sql
+*.dump
+
+# Heap dumps and diagnostics
+*.hprof
+*.pid
+hs_err_pid*
+replay_pid*
+
+# Node modules (if using frontend build tools)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Maven
+.mvn/
+
+# Gradle
+.gradle/
+build/
+
+# Coolify specific (if generated locally)
+.coolify/
