@@ -1,39 +1,6 @@
 {
   "properties": [
     {
-      "name": "notifications.recovery.enabled",
-      "type": "java.lang.Boolean",
-      "description": "Whether outbox startup recovery is active. Recovers PENDING/QUEUED entries left over from a previous JVM crash.",
-      "sourceType": "com.arpay.worker.OutboxStartupRecovery",
-      "defaultValue": true
-    },
-    {
-      "name": "notifications.recovery.stuck-minutes",
-      "type": "java.lang.Integer",
-      "description": "Number of minutes after which a QUEUED outbox entry is considered stuck and eligible for startup recovery.",
-      "sourceType": "com.arpay.worker.OutboxStartupRecovery",
-      "defaultValue": 5
-    },
-    {
-      "name": "notifications.recovery.batch-size",
-      "type": "java.lang.Integer",
-      "description": "Maximum number of stuck outbox entries to re-dispatch on startup recovery.",
-      "sourceType": "com.arpay.worker.OutboxStartupRecovery",
-      "defaultValue": 200
-    },
-    {
-      "name": "notifications.recovery.stuck-seconds",
-      "type": "java.lang.Integer",
-      "description": "Number of seconds after which a QUEUED outbox entry is considered stuck for the periodic recovery scheduler.",
-      "defaultValue": 120
-    },
-    {
-      "name": "notifications.recovery.check-interval-ms",
-      "type": "java.lang.Long",
-      "description": "Interval in milliseconds between recovery scheduler runs.",
-      "defaultValue": 5000
-    },
-    {
       "name": "notifications.self-healing.cleanup-locks.enabled",
       "type": "java.lang.Boolean",
       "description": "Whether the self-healing scheduler should clean up stale processing locks.",

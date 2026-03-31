@@ -1,10 +1,10 @@
 package com.arpay.worker;
 
+import com.arpay.config.RecoveryProperties;
 import com.arpay.entity.NotificationOutbox;
 import com.arpay.repository.NotificationOutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -29,23 +29,11 @@ public class OutboxStartupRecovery implements ApplicationRunner {
 
     private final NotificationOutboxRepository outboxRepository;
     private final NotificationWorker notificationWorker;
-
-    @Value("${notifications.recovery.enabled:true}")
-    private boolean recoveryEnabled;
-
-    /**
-     * QUEUED entries older than this many minutes are considered "stuck"
-     * (worker thread that claimed them has likely crashed).
-     */
-    @Value("${notifications.recovery.stuck-minutes:5}")
-    private int stuckMinutes;
-
-    @Value("${notifications.recovery.batch-size:200}")
-    private int batchSize;
+    private final RecoveryProperties recovery;
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!recoveryEnabled) {
+        if (!recovery.isEnabled()) {
             log.info("Outbox startup recovery is disabled");
             return;
         }
@@ -62,11 +50,11 @@ public class OutboxStartupRecovery implements ApplicationRunner {
 
     private void recoverStuckEntries() {
         // PENDING entries were never dispatched (crash before AFTER_COMMIT listener fired)
-        List<NotificationOutbox> pending = outboxRepository.findPendingWithLimit("PENDING", batchSize);
+        List<NotificationOutbox> pending = outboxRepository.findPendingWithLimit("PENDING", recovery.getBatchSize());
 
         // QUEUED entries were dispatched but never processed (crash mid-worker)
         List<NotificationOutbox> stuckQueued = outboxRepository.findStuckQueued(
-                LocalDateTime.now().minusMinutes(stuckMinutes), batchSize);
+                LocalDateTime.now().minusMinutes(recovery.getStuckMinutes()), recovery.getBatchSize());
 
         List<NotificationOutbox> toRecover = new ArrayList<>(pending);
         toRecover.addAll(stuckQueued);
@@ -92,4 +80,6 @@ public class OutboxStartupRecovery implements ApplicationRunner {
         log.info("Startup recovery complete: dispatched {}/{} entries", dispatched, toRecover.size());
     }
 }
+
+
 
