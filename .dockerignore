@@ -1,0 +1,63 @@
+# =============================================================================
+# Docker Build Context Exclusions
+# Speeds up build by not copying unnecessary files to the Docker daemon
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+*.iml
+.vscode
+.project
+.settings
+.classpath
+
+# Build artifacts (rebuilt inside container)
+target/
+
+# Docker files (not needed inside build context)
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Documentation
+*.md
+docs/
+AGENTS.md
+LOCAL_SETUP_GUIDE.md
+
+# Monitoring & Nginx configs (separate containers)
+monitoring/
+nginx/
+grafana/
+
+# Scripts not needed at build time
+scripts/
+*.ps1
+*.sh
+!src/**/*.sh
+
+# Backups
+backups/
+
+# SSL certs copied separately
+ssl/
+
+# Environment files (secrets!)
+.env
+.env.*
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coolify
+coolify.json
+
+# Qodana
+qodana.yaml
+

@@ -1,6 +1,7 @@
 # =============================================================================
 # ARPAY Notifications Microservice - Production Dockerfile
 # Multi-stage build with security best practices
+# Optimised for Coolify deployment
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -39,25 +40,25 @@ WORKDIR /app
 # Copy the built jar from builder stage
 COPY --from=builder --chown=appuser:appgroup /build/target/arpay-notifications-0.0.1-SNAPSHOT.jar app.jar
 
-# Create directories for SSL certificates and logs
-RUN mkdir -p /app/certs /app/logs && \
+# Create directories for SSL certificates, Firebase config, and logs
+RUN mkdir -p /app/certs /app/logs /app/firebase && \
     chown -R appuser:appgroup /app
 
 # Copy SSL certificates if they exist (optional)
 COPY --chown=appuser:appgroup certs/* /app/certs/ 2>/dev/null || true
 
-# Copy Firebase service account key (will be overridden by volume mount in production)
+# Copy Firebase service account key (will be overridden by env var in Coolify)
 COPY --chown=appuser:appgroup src/main/resources/firebase/* /app/firebase/ 2>/dev/null || true
 
 # Switch to non-root user (security best practice)
 USER appuser
 
-# Expose application port
-EXPOSE 8086
+# Expose application port (Coolify expects 8080)
+EXPOSE 8080
 
 # Health check configuration
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8086/actuator/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT:-8080}/actuator/health || exit 1
 
 # JVM security and performance options
 # -XX:+UseContainerResource: Respect Docker memory limits
@@ -67,8 +68,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # -XX:+HeapDumpOnOutOfMemoryError: Generate heap dump on OOM for debugging
 # -XX:HeapDumpPath: Where to store heap dumps
 # -Djava.security.egd: Faster entropy source for non-blocking random
-# -Dserver.port: Application port
-# -Dspring.profiles.active: Active Spring profile
+#
+# NOTE: server.port and spring.profiles.active are now controlled via
+#       environment variables (SERVER_PORT, SPRING_PROFILES_ACTIVE) set in
+#       Coolify, so they are NOT hardcoded here.
 
 ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerResource \
     -XX:MaxRAMPercentage=75.0 \
@@ -76,9 +79,7 @@ ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerResource \
     -XX:MaxGCPauseMillis=200 \
     -XX:+HeapDumpOnOutOfMemoryError \
     -XX:HeapDumpPath=/app/logs/heap_dump.hprof \
-    -Djava.security.egd=file:/dev/./urandom \
-    -Dserver.port=8086 \
-    -Dspring.profiles.active=production"
+    -Djava.security.egd=file:/dev/./urandom"
 
 # Entry point with graceful shutdown support
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_TOOL_OPTIONS -jar app.jar"]
