@@ -76,9 +76,10 @@ coverage/
 !src/main/resources/application.properties
 !src/main/resources/application-production.properties
 
-# Database backups
+# Database backups (but NOT migration scripts - those should be versioned)
 backups/
 *.sql
+!src/main/resources/db/migration/*.sql
 *.dump
 
 # Heap dumps and diagnostics
