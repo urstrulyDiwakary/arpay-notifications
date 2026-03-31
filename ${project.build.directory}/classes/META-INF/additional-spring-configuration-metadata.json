@@ -1,0 +1,572 @@
+{
+  "properties": [
+    {
+      "name": "notifications.self-healing.cleanup-locks.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the self-healing scheduler should clean up stale processing locks.",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.worker.backpressure.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether backpressure monitoring is active.",
+      "sourceType": "com.arpay.worker.BackpressureMonitor",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.worker.backpressure.max-queue-depth",
+      "type": "java.lang.Integer",
+      "description": "Maximum total queue depth across all priority queues before backpressure kicks in.",
+      "sourceType": "com.arpay.worker.BackpressureMonitor",
+      "defaultValue": 10000
+    },
+    {
+      "name": "notifications.backpressure.check-interval-ms",
+      "type": "java.lang.Long",
+      "description": "How often the BackpressureMonitor checks queue depth and adjusts the rate limiter (ms).",
+      "sourceType": "com.arpay.worker.BackpressureMonitor",
+      "defaultValue": 5000
+    },
+    {
+      "name": "notifications.ratelimit.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether API intake rate limiting via Guava RateLimiter is enabled.",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.ratelimit.global-permits-per-second",
+      "type": "java.lang.Double",
+      "description": "Global ingestion rate limit in requests per second.",
+      "defaultValue": 1000
+    },
+    {
+      "name": "notifications.ratelimit.per-endpoint-permits-per-second",
+      "type": "java.lang.Double",
+      "description": "Per-endpoint ingestion rate limit in requests per second.",
+      "defaultValue": 100
+    },
+    {
+      "name": "notifications.ratelimit.per-client-permits-per-second",
+      "type": "java.lang.Double",
+      "description": "Per-client ingestion rate limit in requests per second.",
+      "defaultValue": 10
+    },
+    {
+      "name": "notifications.rate-limit.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether per-type rate limiting windows are enabled.",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.rate-limit.window-seconds",
+      "type": "java.lang.Long",
+      "description": "Rolling window in seconds used for per-type rate limiting.",
+      "defaultValue": 60
+    },
+    {
+      "name": "notifications.rate-limit.payment",
+      "type": "java.lang.Integer",
+      "description": "Maximum notifications of type PAYMENT allowed per rate-limit window.",
+      "defaultValue": 120
+    },
+    {
+      "name": "notifications.rate-limit.approval",
+      "type": "java.lang.Integer",
+      "description": "Maximum notifications of type APPROVAL allowed per rate-limit window.",
+      "defaultValue": 120
+    },
+    {
+      "name": "notifications.rate-limit.system",
+      "type": "java.lang.Integer",
+      "description": "Maximum notifications of type SYSTEM allowed per rate-limit window.",
+      "defaultValue": 300
+    },
+    {
+      "name": "notifications.priority.rejection.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether priority-based rejection (graceful degradation) is active under load.",
+      "sourceType": "com.arpay.filter.PriorityRejectionFilter",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.priority.rejection.low-threshold-percent",
+      "type": "java.lang.Integer",
+      "description": "Queue fill percentage at which LOW priority requests start being rejected.",
+      "sourceType": "com.arpay.filter.PriorityRejectionFilter",
+      "defaultValue": 70
+    },
+    {
+      "name": "notifications.priority.rejection.normal-threshold-percent",
+      "type": "java.lang.Integer",
+      "description": "Queue fill percentage at which NORMAL priority requests start being rejected. CRITICAL requests are always accepted.",
+      "sourceType": "com.arpay.filter.PriorityRejectionFilter",
+      "defaultValue": 85
+    },
+    {
+      "name": "notifications.dlq.retry.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the DLQ auto-retry scheduler is active.",
+      "sourceType": "com.arpay.worker.DLQRetryScheduler",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.dlq.retry.batch-size",
+      "type": "java.lang.Integer",
+      "description": "Number of DLQ entries processed per retry cycle.",
+      "sourceType": "com.arpay.worker.DLQRetryScheduler",
+      "defaultValue": 100
+    },
+    {
+      "name": "notifications.dlq.retry.interval-ms",
+      "type": "java.lang.Long",
+      "description": "Interval between DLQ retry cycles in milliseconds.",
+      "sourceType": "com.arpay.worker.DLQRetryScheduler",
+      "defaultValue": 300000
+    },
+    {
+      "name": "notifications.dlq.retry.base-delay-seconds",
+      "type": "java.lang.Long",
+      "description": "Base exponential back-off delay in seconds for DLQ retry.",
+      "sourceType": "com.arpay.worker.DLQRetryScheduler",
+      "defaultValue": 60
+    },
+    {
+      "name": "notifications.dlq.retry.max-cycles",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of DLQ retry cycles before an entry is permanently abandoned.",
+      "sourceType": "com.arpay.worker.DLQRetryScheduler",
+      "defaultValue": 3
+    },
+    {
+      "name": "notifications.dlq.cleanup.cron",
+      "type": "java.lang.String",
+      "description": "Cron expression for the DLQ cleanup job.",
+      "defaultValue": "0 0 2 * * ?"
+    },
+    {
+      "name": "notifications.outbox.retry.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the outbox periodic retry scheduler is active.",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.outbox.retry.interval-ms",
+      "type": "java.lang.Long",
+      "description": "Interval between outbox retry passes in milliseconds.",
+      "defaultValue": 600000
+    },
+    {
+      "name": "notifications.outbox.retry.max-attempts",
+      "type": "java.lang.Integer",
+      "description": "Maximum delivery attempts before an outbox entry is moved to the DLQ.",
+      "defaultValue": 3
+    },
+    {
+      "name": "notifications.outbox.cleanup.cron",
+      "type": "java.lang.String",
+      "description": "Cron expression for the outbox cleanup job.",
+      "defaultValue": "0 0 3 * * ?"
+    },
+    {
+      "name": "notifications.processing-lock.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "TTL in seconds for a processing lock held by a worker thread.",
+      "defaultValue": 120
+    },
+    {
+      "name": "notifications.processing-lock.cleanup-age-seconds",
+      "type": "java.lang.Long",
+      "description": "Age in seconds after which an unreleased processing lock is cleaned up.",
+      "defaultValue": 300
+    },
+    {
+      "name": "notifications.push-circuit.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the Firebase push circuit breaker is active.",
+      "defaultValue": true
+    },
+    {
+      "name": "notifications.push-circuit.failure-rate-threshold",
+      "type": "java.lang.Double",
+      "description": "Failure rate (0.0–1.0) above which the push circuit trips to OPEN.",
+      "defaultValue": 0.3
+    },
+    {
+      "name": "notifications.push-circuit.min-samples",
+      "type": "java.lang.Integer",
+      "description": "Minimum number of samples required before the circuit evaluates the failure rate.",
+      "defaultValue": 30
+    },
+    {
+      "name": "notifications.push-circuit.cooldown-seconds",
+      "type": "java.lang.Long",
+      "description": "Seconds to wait in OPEN state before transitioning to HALF-OPEN.",
+      "defaultValue": 120
+    },
+    {
+      "name": "notifications.push-circuit.window-seconds",
+      "type": "java.lang.Long",
+      "description": "Sliding window in seconds used to calculate the failure rate.",
+      "defaultValue": 60
+    },
+    {
+      "name": "notifications.alert.dlq-size-threshold",
+      "type": "java.lang.Integer",
+      "description": "DLQ size above which an alert is fired.",
+      "defaultValue": 100
+    },
+    {
+      "name": "notifications.alert.queue-delay-threshold-seconds",
+      "type": "java.lang.Long",
+      "description": "Queue age in seconds above which a delay alert is fired.",
+      "defaultValue": 30
+    },
+    {
+      "name": "notifications.alert.push-failure-rate-threshold",
+      "type": "java.lang.Double",
+      "description": "Push failure rate above which an alert is fired.",
+      "defaultValue": 0.01
+    },
+    {
+      "name": "notifications.alert.sla-failed-threshold",
+      "type": "java.lang.Integer",
+      "description": "Number of SLA-failed notifications that triggers an alert.",
+      "defaultValue": 1
+    },
+    {
+      "name": "notifications.metrics.collection-interval-ms",
+      "type": "java.lang.Long",
+      "description": "Interval in milliseconds between queue metrics collection passes.",
+      "defaultValue": 5000
+    },
+    {
+      "name": "notifications.alerting.check-interval-ms",
+      "type": "java.lang.Long",
+      "description": "Interval in milliseconds between hard-limit alerting checks.",
+      "defaultValue": 30000
+    },
+    {
+      "name": "notifications.system.max-queue-size",
+      "type": "java.lang.Integer",
+      "description": "Hard limit on the total queue size across all priorities. Ingestion returns 429 when exceeded.",
+      "defaultValue": 10000
+    },
+    {
+      "name": "notifications.system.max-queue-size-critical",
+      "type": "java.lang.Integer",
+      "description": "Hard limit on the CRITICAL priority queue size.",
+      "defaultValue": 1000
+    },
+    {
+      "name": "notifications.system.max-queue-size-normal",
+      "type": "java.lang.Integer",
+      "description": "Hard limit on the NORMAL priority queue size.",
+      "defaultValue": 7000
+    },
+    {
+      "name": "notifications.system.max-queue-size-low",
+      "type": "java.lang.Integer",
+      "description": "Hard limit on the LOW priority queue size.",
+      "defaultValue": 2000
+    },
+    {
+      "name": "notifications.system.max-queue-age-seconds",
+      "type": "java.lang.Long",
+      "description": "Maximum age in seconds a notification may sit in the queue before an alert is raised.",
+      "defaultValue": 300
+    },
+    {
+      "name": "notifications.system.max-queue-age-critical-seconds",
+      "type": "java.lang.Long",
+      "description": "Maximum age in seconds a CRITICAL notification may sit in the queue before an alert is raised.",
+      "defaultValue": 30
+    },
+    {
+      "name": "notifications.system.max-dlq-size",
+      "type": "java.lang.Integer",
+      "description": "DLQ size at which throttling begins.",
+      "defaultValue": 100
+    },
+    {
+      "name": "notifications.system.max-dlq-size-hard-stop",
+      "type": "java.lang.Integer",
+      "description": "DLQ size at which ingestion hard-stops.",
+      "defaultValue": 200
+    },
+    {
+      "name": "notifications.system.max-ingestion-rate",
+      "type": "java.lang.Integer",
+      "description": "Maximum sustained ingestion rate in requests per second.",
+      "defaultValue": 100
+    },
+    {
+      "name": "notifications.system.max-burst-rate",
+      "type": "java.lang.Integer",
+      "description": "Maximum burst ingestion rate in requests per second.",
+      "defaultValue": 200
+    },
+    {
+      "name": "notifications.system.min-processing-rate",
+      "type": "java.lang.Integer",
+      "description": "Minimum expected processing rate in notifications per second. Triggers an alert when below this.",
+      "defaultValue": 20
+    },
+    {
+      "name": "notifications.system.max-inflight",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of notifications being actively processed at once.",
+      "defaultValue": 500
+    },
+    {
+      "name": "notifications.system.max-inflight-hard-stop",
+      "type": "java.lang.Integer",
+      "description": "In-flight count at which ingestion hard-stops.",
+      "defaultValue": 800
+    },
+    {
+      "name": "notifications.system.backpressure-threshold-percent",
+      "type": "java.lang.Integer",
+      "description": "Queue fill percentage (of max) at which backpressure begins.",
+      "defaultValue": 70
+    },
+    {
+      "name": "notifications.system.ingestion-pause-threshold-percent",
+      "type": "java.lang.Integer",
+      "description": "Queue fill percentage (of max) at which ingestion is paused.",
+      "defaultValue": 90
+    },
+    {
+      "name": "notifications.simple-mode",
+      "type": "java.lang.Boolean",
+      "description": "Enables simple (non-queued) notification delivery mode.",
+      "defaultValue": false
+    },
+    {
+      "name": "notifications.simple-mode.push",
+      "type": "java.lang.Boolean",
+      "description": "Enables simple push delivery within simple mode.",
+      "defaultValue": true
+    },
+    {
+      "name": "notification.worker.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the async notification worker is active.",
+      "sourceType": "com.arpay.config.AsyncConfig",
+      "defaultValue": true
+    },
+    {
+      "name": "notification.worker.critical-threads",
+      "type": "java.lang.Integer",
+      "description": "Core thread pool size for CRITICAL priority notifications.",
+      "sourceType": "com.arpay.config.AsyncConfig",
+      "defaultValue": 5
+    },
+    {
+      "name": "notification.worker.normal-threads",
+      "type": "java.lang.Integer",
+      "description": "Core thread pool size for NORMAL priority notifications.",
+      "sourceType": "com.arpay.config.AsyncConfig",
+      "defaultValue": 10
+    },
+    {
+      "name": "notification.worker.low-threads",
+      "type": "java.lang.Integer",
+      "description": "Core thread pool size for LOW priority notifications.",
+      "sourceType": "com.arpay.config.AsyncConfig",
+      "defaultValue": 3
+    },
+    {
+      "name": "notification.worker.max-inflight",
+      "type": "java.lang.Integer",
+      "description": "Maximum in-flight notifications across all worker pools.",
+      "sourceType": "com.arpay.config.AsyncConfig",
+      "defaultValue": 200
+    },
+    {
+      "name": "notification.worker.queue-capacity",
+      "type": "java.lang.Integer",
+      "description": "Bounded queue capacity per worker executor.",
+      "sourceType": "com.arpay.config.AsyncConfig",
+      "defaultValue": 500
+    },
+    {
+      "name": "notification.worker.poll-timeout-ms",
+      "type": "java.lang.Long",
+      "description": "Redis queue poll timeout in milliseconds.",
+      "defaultValue": 1000
+    },
+    {
+      "name": "notification.worker.scale.max-critical",
+      "type": "java.lang.Integer",
+      "description": "Maximum thread pool size for CRITICAL priority notifications under load.",
+      "defaultValue": 16
+    },
+    {
+      "name": "notification.worker.scale.max-normal",
+      "type": "java.lang.Integer",
+      "description": "Maximum thread pool size for NORMAL priority notifications under load.",
+      "defaultValue": 32
+    },
+    {
+      "name": "notification.queue.critical",
+      "type": "java.lang.String",
+      "description": "Redis key for the CRITICAL priority notification queue.",
+      "defaultValue": "notification:queue:critical"
+    },
+    {
+      "name": "notification.queue.normal",
+      "type": "java.lang.String",
+      "description": "Redis key for the NORMAL priority notification queue.",
+      "defaultValue": "notification:queue:normal"
+    },
+    {
+      "name": "notification.queue.low",
+      "type": "java.lang.String",
+      "description": "Redis key for the LOW priority notification queue.",
+      "defaultValue": "notification:queue:low"
+    },
+    {
+      "name": "notification.dlq",
+      "type": "java.lang.String",
+      "description": "Redis key for the Dead-Letter Queue.",
+      "defaultValue": "notification:dlq"
+    },
+    {
+      "name": "notification.retry.max-attempts",
+      "type": "java.lang.Integer",
+      "description": "Maximum delivery attempts before a notification is sent to the DLQ.",
+      "defaultValue": 3
+    },
+    {
+      "name": "notification.dedup.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "TTL in seconds for deduplication keys stored in Redis.",
+      "defaultValue": 3600
+    },
+    {
+      "name": "monitoring.alert.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether active monitoring and alerting is enabled.",
+      "sourceType": "com.arpay.service.ActiveMonitoringService",
+      "defaultValue": true
+    },
+    {
+      "name": "monitoring.alert.success-rate-threshold",
+      "type": "java.lang.Double",
+      "description": "Minimum acceptable push success rate (%). Alerts fire below this value.",
+      "sourceType": "com.arpay.service.ActiveMonitoringService",
+      "defaultValue": 90.0
+    },
+    {
+      "name": "monitoring.alert.dlq-size-threshold",
+      "type": "java.lang.Integer",
+      "description": "DLQ size above which the active monitor fires an alert.",
+      "sourceType": "com.arpay.service.ActiveMonitoringService",
+      "defaultValue": 50
+    },
+    {
+      "name": "monitoring.check.interval-ms",
+      "type": "java.lang.Long",
+      "description": "Interval in milliseconds between active monitoring check cycles.",
+      "defaultValue": 300000
+    },
+    {
+      "name": "alerting.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether Slack alerting is enabled.",
+      "sourceType": "com.arpay.service.AlertService",
+      "defaultValue": true
+    },
+    {
+      "name": "alerting.slack.webhook-url",
+      "type": "java.lang.String",
+      "description": "Slack incoming webhook URL for alert delivery."
+    },
+    {
+      "name": "firebase.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether Firebase Cloud Messaging is enabled. Set to false for local development.",
+      "sourceType": "com.arpay.config.FirebaseConfig",
+      "defaultValue": true
+    },
+    {
+      "name": "firebase.service-account-key-path",
+      "type": "java.lang.String",
+      "description": "Classpath or file-system path to the Firebase service-account JSON credential.",
+      "sourceType": "com.arpay.config.FirebaseConfig",
+      "defaultValue": "classpath:firebase/firebase-service-account.json"
+    },
+    {
+      "name": "internal.api.keys",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of valid internal API keys used by the X-API-Key header filter.",
+      "sourceType": "com.arpay.filter.InternalAuthFilter"
+    },
+    {
+      "name": "internal.api.header",
+      "type": "java.lang.String",
+      "description": "HTTP header name used for internal API key authentication.",
+      "sourceType": "com.arpay.filter.InternalAuthFilter",
+      "defaultValue": "X-API-Key"
+    },
+    {
+      "name": "internal.api.excluded-paths",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of Ant-style path patterns excluded from internal API key validation.",
+      "sourceType": "com.arpay.filter.InternalAuthFilter",
+      "defaultValue": "/actuator/**,/api/notifications/tokens/**"
+    },
+    {
+      "name": "cors.allowed-origins",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of allowed CORS origins.",
+      "sourceType": "com.arpay.config.CorsConfig"
+    },
+    {
+      "name": "cors.allowed-methods",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of allowed CORS HTTP methods.",
+      "sourceType": "com.arpay.config.CorsConfig",
+      "defaultValue": "GET,POST,PUT,DELETE,OPTIONS"
+    },
+    {
+      "name": "cors.allowed-headers",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of allowed CORS headers.",
+      "sourceType": "com.arpay.config.CorsConfig",
+      "defaultValue": "*"
+    },
+    {
+      "name": "cors.allow-credentials",
+      "type": "java.lang.Boolean",
+      "description": "Whether CORS requests with credentials are allowed.",
+      "sourceType": "com.arpay.config.CorsConfig",
+      "defaultValue": true
+    },
+    {
+      "name": "cors.max-age",
+      "type": "java.lang.Long",
+      "description": "CORS preflight cache duration in seconds.",
+      "sourceType": "com.arpay.config.CorsConfig",
+      "defaultValue": 3600
+    },
+    {
+      "name": "jwt.secret",
+      "type": "java.lang.String",
+      "description": "HMAC-SHA secret used to sign and verify JWT tokens. Must be at least 64 characters in production."
+    },
+    {
+      "name": "jwt.expiration",
+      "type": "java.lang.Long",
+      "description": "JWT token expiration time in milliseconds.",
+      "defaultValue": 172800000
+    },
+    {
+      "name": "arpay.backend.base-url",
+      "type": "java.lang.String",
+      "description": "Base URL of the Arpay backend service used for cross-service calls.",
+      "defaultValue": "http://localhost:8080"
+    }
+  ]
+}
+
