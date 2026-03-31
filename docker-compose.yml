@@ -62,18 +62,23 @@ services:
       # Logging
       - LOGGING_LEVEL_ROOT=${LOGGING_LEVEL_ROOT:-INFO}
       - LOGGING_LEVEL_COM_ARPAY=${LOGGING_LEVEL_COM_ARPAY:-INFO}
+
+      # Notification Modes
+      - NOTIFICATIONS_SIMPLE_MODE=${NOTIFICATIONS_SIMPLE_MODE:-false}
+      - NOTIFICATIONS_SIMPLE_MODE_PUSH=${NOTIFICATIONS_SIMPLE_MODE_PUSH:-false}
+
+      # Backend URL
+      - ARPAY_BACKEND_URL=${ARPAY_BACKEND_URL:-https://api.arpay.anantarealty.in}
     volumes:
       # Firebase credentials — populate via Coolify persistent storage or docker volume
       - firebase-credentials:/app/firebase
       # Mount logs directory
       - app-logs:/app/logs
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     networks:
-      - arpay-network
+      coolify:
+        aliases:
+          - arpay-notifications
+      arpay-network:
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/actuator/health"]
       interval: 30s
@@ -90,12 +95,14 @@ services:
           memory: 512M
 
   # ---------------------------------------------------------------------------
-  # PostgreSQL Database
+  # PostgreSQL Database (standalone mode only — Coolify uses external managed DB)
+  # Start with: docker compose --profile standalone up
   # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: arpay-notifications-postgres
     restart: unless-stopped
+    profiles: [standalone]
     environment:
       - POSTGRES_DB=${DB_NAME:-ARPAY}
       - POSTGRES_USER=${DB_USERNAME:-arpay_notifications}
@@ -122,12 +129,14 @@ services:
           memory: 256M
 
   # ---------------------------------------------------------------------------
-  # Redis Cache/Queue
+  # Redis Cache/Queue (standalone mode only — Coolify uses external managed Redis)
+  # Start with: docker compose --profile standalone up
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: arpay-notifications-redis
     restart: unless-stopped
+    profiles: [standalone]
     command: >
       redis-server
       --requirepass ${REDIS_PASSWORD}
@@ -228,6 +237,9 @@ services:
 # Networks
 # =============================================================================
 networks:
+  coolify:
+    external: true
+    name: coolify
   arpay-network:
     driver: bridge
     name: arpay-notifications-network
