@@ -44,11 +44,13 @@ COPY --from=builder --chown=appuser:appgroup /build/target/arpay-notifications-0
 RUN mkdir -p /app/certs /app/logs /app/firebase && \
     chown -R appuser:appgroup /app
 
-# Copy SSL certificates if they exist (optional)
-COPY --chown=appuser:appgroup certs/* /app/certs/ 2>/dev/null || true
-
-# Copy Firebase service account key (will be overridden by env var in Coolify)
-COPY --chown=appuser:appgroup src/main/resources/firebase/* /app/firebase/ 2>/dev/null || true
+# Copy SSL certificates if they exist (optional, typically mounted at runtime via Coolify/Docker volumes)
+# Using shell command since COPY does not support optional/conditional copies
+RUN --mount=type=bind,target=/context \
+    cp /context/certs/* /app/certs/ 2>/dev/null; \
+    cp /context/src/main/resources/firebase/* /app/firebase/ 2>/dev/null; \
+    chown -R appuser:appgroup /app/certs /app/firebase; \
+    true
 
 # Switch to non-root user (security best practice)
 USER appuser
