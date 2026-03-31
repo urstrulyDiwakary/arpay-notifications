@@ -31,9 +31,7 @@ public class InternalAuthFilter extends OncePerRequestFilter {
      */
     private static final List<String> EXCLUDED_PATHS = List.of(
         "/actuator/",
-        "/api/notifications/tokens/",
-        "/api/notifications/recent",
-        "/api/notifications/unread-count"
+        "/api/notifications/tokens/"
     );
     
     @Override
@@ -51,14 +49,7 @@ public class InternalAuthFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        
-        // Only protect write operations (POST, PUT, PATCH, DELETE)
-        if (isReadOperation(method)) {
-            log.debug("Skipping auth for read operation: {} {}", method, path);
-            filterChain.doFilter(request, response);
-            return;
-        }
-        
+
         // Extract API key from header
         String apiKeyHeader = internalAuthService.getApiKeyHeader();
         String apiKey = request.getHeader(apiKeyHeader);
@@ -88,14 +79,5 @@ public class InternalAuthFilter extends OncePerRequestFilter {
     private boolean isExcludedPath(String path) {
         return EXCLUDED_PATHS.stream()
             .anyMatch(excluded -> path.startsWith(excluded));
-    }
-    
-    /**
-     * Check if HTTP method is a read operation
-     */
-    private boolean isReadOperation(String method) {
-        return "GET".equalsIgnoreCase(method) || 
-               "HEAD".equalsIgnoreCase(method) || 
-               "OPTIONS".equalsIgnoreCase(method);
     }
 }

@@ -65,10 +65,10 @@ public class SecurityConfig {
             // needs an anonymous Authentication token to evaluate permitAll().
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/**").permitAll()
+                // Token registration is public (used by frontend during login)
                 .requestMatchers("/api/notifications/tokens/**").permitAll()
-                .requestMatchers("/api/notifications/recent").permitAll()
-                .requestMatchers("/api/notifications/unread-count").permitAll()
-                .anyRequest().permitAll()
+                // All other endpoints require API key authentication
+                .anyRequest().authenticated()
             )
             // Add filters - rate limit first, then auth
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
