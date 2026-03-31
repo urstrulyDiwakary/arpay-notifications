@@ -46,8 +46,11 @@ RUN mkdir -p /app/certs /app/logs /app/firebase && \
 
 # NOTE: SSL certificates are mounted at runtime via Coolify/Docker volumes into /app/certs
 
-# Copy Firebase service account key from builder stage (will be overridden by env var in Coolify)
-COPY --from=builder --chown=appuser:appgroup /build/src/main/resources/firebase/ /app/firebase/
+# NOTE: Firebase service account key is NOT bundled in the image (it's in .gitignore).
+# It should be provided at runtime via:
+#   - Environment variable (FIREBASE_SERVICE_ACCOUNT_JSON)
+#   - Volume mount into /app/firebase/
+#   - Coolify secret file
 
 # Switch to non-root user (security best practice)
 USER appuser
