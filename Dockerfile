@@ -44,13 +44,10 @@ COPY --from=builder --chown=appuser:appgroup /build/target/arpay-notifications-0
 RUN mkdir -p /app/certs /app/logs /app/firebase && \
     chown -R appuser:appgroup /app
 
-# Copy SSL certificates if they exist (optional, typically mounted at runtime via Coolify/Docker volumes)
-# Using shell command since COPY does not support optional/conditional copies
-RUN --mount=type=bind,target=/context \
-    cp /context/certs/* /app/certs/ 2>/dev/null; \
-    cp /context/src/main/resources/firebase/* /app/firebase/ 2>/dev/null; \
-    chown -R appuser:appgroup /app/certs /app/firebase; \
-    true
+# NOTE: SSL certificates are mounted at runtime via Coolify/Docker volumes into /app/certs
+
+# Copy Firebase service account key from builder stage (will be overridden by env var in Coolify)
+COPY --from=builder --chown=appuser:appgroup /build/src/main/resources/firebase/ /app/firebase/
 
 # Switch to non-root user (security best practice)
 USER appuser
@@ -63,7 +60,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT:-8080}/actuator/health || exit 1
 
 # JVM security and performance options
-# -XX:+UseContainerResource: Respect Docker memory limits
+# -XX:+UseContainerSupport: Respect Docker memory/CPU limits
 # -XX:MaxRAMPercentage: Use percentage of available memory (safer than fixed -Xmx)
 # -XX:+UseG1GC: Modern garbage collector for better performance
 # -XX:MaxGCPauseMillis: Target max GC pause time
@@ -75,7 +72,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 #       environment variables (SERVER_PORT, SPRING_PROFILES_ACTIVE) set in
 #       Coolify, so they are NOT hardcoded here.
 
-ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerResource \
+ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerSupport \
     -XX:MaxRAMPercentage=75.0 \
     -XX:+UseG1GC \
     -XX:MaxGCPauseMillis=200 \
