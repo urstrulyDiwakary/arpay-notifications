@@ -3,17 +3,14 @@ package com.arpay.config;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 /**
  * Strongly-typed configuration for the outbox recovery subsystem.
  *
  * <p>Bound from the {@code notifications.recovery.*} prefix in application.properties.
- * Using {@code @ConfigurationProperties} (instead of individual {@code @Value} annotations)
- * lets the Spring Boot annotation processor generate IDE-readable metadata so that
- * every property in this group is always recognised and auto-completed in the IDE.
+ * Registered as a bean by {@code @ConfigurationPropertiesScan} on
+ * {@link com.arpay.ArpayNotificationsApplication}; no {@code @Component} needed.
  */
-@Component
 @ConfigurationProperties(prefix = "notifications.recovery")
 @Getter
 @Setter
@@ -47,4 +44,3 @@ public class RecoveryProperties {
      */
     private long checkIntervalMs = 5000;
 }
-
