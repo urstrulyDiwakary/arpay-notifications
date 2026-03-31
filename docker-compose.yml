@@ -38,18 +38,18 @@ services:
       - FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/app/firebase/firebase-service-account.json
       
       # JWT Security
-      - JWT_SECRET=${JWT_SECRET}
+      - JWT_SECRET=${JWT_SECRET:-}
       - JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS:-172800000}
       
       # Internal API Authentication
-      - INTERNAL_API_KEYS=${INTERNAL_API_KEYS}
-      
+      - INTERNAL_API_KEYS=${INTERNAL_API_KEYS:-}
+
       # Email Configuration
       - SPRING_MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
       - SPRING_MAIL_PORT=${MAIL_PORT:-587}
-      - SPRING_MAIL_USERNAME=${MAIL_USERNAME}
-      - SPRING_MAIL_PASSWORD=${MAIL_PASSWORD}
-      
+      - SPRING_MAIL_USERNAME=${MAIL_USERNAME:-}
+      - SPRING_MAIL_PASSWORD=${MAIL_PASSWORD:-}
+
       # CORS Configuration
       - CORS_ORIGINS=${CORS_ORIGINS}
       
@@ -63,8 +63,8 @@ services:
       - LOGGING_LEVEL_ROOT=${LOGGING_LEVEL_ROOT:-INFO}
       - LOGGING_LEVEL_COM_ARPAY=${LOGGING_LEVEL_COM_ARPAY:-INFO}
     volumes:
-      # Mount Firebase credentials (production)
-      - ${FIREBASE_KEY_PATH:-./firebase:/app/firebase:ro}
+      # Firebase credentials — populate via Coolify persistent storage or docker volume
+      - firebase-credentials:/app/firebase
       # Mount logs directory
       - app-logs:/app/logs
     depends_on:
@@ -78,8 +78,8 @@ services:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8086/actuator/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 90s
     deploy:
       resources:
         limits:
@@ -240,6 +240,8 @@ volumes:
     name: arpay-notifications-postgres-data
   redis-data:
     name: arpay-notifications-redis-data
+  firebase-credentials:
+    name: arpay-notifications-firebase-credentials
   app-logs:
     name: arpay-notifications-app-logs
   nginx-logs:

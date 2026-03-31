@@ -55,12 +55,12 @@ RUN mkdir -p /app/certs /app/logs /app/firebase && \
 # Switch to non-root user (security best practice)
 USER appuser
 
-# Expose application port (Coolify expects 8080)
-EXPOSE 8080
+# Expose application port (must match server.port default in application.properties)
+EXPOSE 8086
 
 # Health check configuration
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT:-8080}/actuator/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT:-8086}/actuator/health || exit 1
 
 # JVM security and performance options
 # -XX:+UseContainerSupport: Respect Docker memory/CPU limits

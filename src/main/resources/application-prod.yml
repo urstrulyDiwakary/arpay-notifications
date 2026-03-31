@@ -27,7 +27,7 @@ spring:
 
   # ── Database ────────────────────────────────────────────────────────────────
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/ARPAY}
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:ARPAY}}
     username: ${DB_USERNAME:arpay_notifications}
     password: ${DB_PASSWORD:}
     hikari:
@@ -39,6 +39,7 @@ spring:
       connection-test-query: SELECT 1
       pool-name: ArpayNotificationsHikariPool
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate          # NEVER auto-update in prod
     show-sql: false
@@ -64,7 +65,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD}
+      password: ${REDIS_PASSWORD:}
       lettuce:
         pool:
           max-active: 30
@@ -75,8 +76,8 @@ spring:
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail.smtp:
         auth: true
@@ -152,12 +153,12 @@ notifications:
 
 # ── Security ──────────────────────────────────────────────────────────────────
 jwt:
-  secret: ${JWT_SECRET}             # MUST be set via env
+  secret: ${JWT_SECRET:}             # MUST be set via env
   expiration: ${JWT_EXPIRATION_MS:172800000}
 
 internal:
   api:
-    keys: ${INTERNAL_API_KEYS}      # MUST be set via env
+    keys: ${INTERNAL_API_KEYS:}      # MUST be set via env
     header: X-API-Key
 
 cors:
