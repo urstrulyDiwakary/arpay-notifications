@@ -36,6 +36,10 @@
 		<jackson-bom.version>2.18.6</jackson-bom.version>
 		<assertj.version>3.27.7</assertj.version>
 		<netty.version>4.1.132.Final</netty.version>
+		<!-- Spring Framework 6.2.17: fixes CVE-2026-22737 (script view path traversal), CVE-2026-22735 (SSE stream corruption) -->
+		<spring-framework.version>6.2.17</spring-framework.version>
+		<!-- Spring Security 6.5.9: fixes CVE-2026-22732 (HTTP headers not written) -->
+		<spring-security.version>6.5.9</spring-security.version>
 	</properties>
 	<dependencies>
 		<!-- Spring Boot Web -->
