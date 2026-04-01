@@ -54,11 +54,19 @@ spring:
     open-in-view: false
 
   # ── Flyway ──────────────────────────────────────────────────────────────────
+  # NOTE: Flyway is intentionally disabled for the notifications service in production.
+  # All shared database tables (notifications, user_device_tokens, etc.) are created
+  # and managed by the arpay-backend Flyway migrations (see V71__recreate_notifications_service_tables.sql).
+  # This avoids version conflicts in the shared flyway_schema_history table.
+  # Use SPRING_JPA_HIBERNATE_DDL_AUTO=none (not validate) since backend manages the schema.
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true
     validate-on-migrate: true
     locations: classpath:db/migration
+    # Separate history table — only needed if Flyway is re-enabled in future.
+    # Prevents version collisions with backend's flyway_schema_history.
+    table: notifications_flyway_schema_history
 
   # ── Redis ───────────────────────────────────────────────────────────────────
   data:

@@ -128,9 +128,11 @@ public class ConfigurationValidator implements HealthIndicator {
             errors.add("DB_PASSWORD / spring.datasource.password is not set");
         }
 
-        // ── Redis password check ───────────────────────────────────────
+        // ── Redis password check ───────────────────────────────────────────
+        // Redis on an internal Docker network (Coolify) commonly runs without a password.
+        // Downgrade to a warning so the readiness probe stays UP in that configuration.
         if (redisPassword.isBlank() && isProduction) {
-            errors.add("REDIS_PASSWORD / spring.data.redis.password is not set");
+            warnings.add("REDIS_PASSWORD is not set — acceptable if Redis is on a private Docker network; set it if your Redis instance requires auth");
         }
 
         // Report warnings
