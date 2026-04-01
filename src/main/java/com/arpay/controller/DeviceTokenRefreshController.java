@@ -1,6 +1,5 @@
 package com.arpay.controller;
 
-import com.arpay.dto.DeviceTokenDTO;
 import com.arpay.entity.User;
 import com.arpay.entity.UserDeviceToken;
 import com.arpay.repository.UserRepository;
@@ -13,17 +12,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Device token management with refresh support.
- * 
+ *
  * CRITICAL: This endpoint solves token drift - the #1 cause of silent delivery failures.
- * 
+ *
  * Frontend should call this:
  * - On app login
  * - On app resume (if token changed)
@@ -40,7 +37,7 @@ public class DeviceTokenRefreshController {
     
     /**
      * Register or refresh device token.
-     * 
+     *
      * Call this from frontend whenever FCM token changes:
      * - App login
      * - Token refresh event
@@ -73,7 +70,9 @@ public class DeviceTokenRefreshController {
             }
             
             // Check if this token already exists (active or inactive)
-            Optional<UserDeviceToken> existingToken = deviceTokenRepository.findByDeviceToken(token);
+            // Use findFirstByDeviceTokenOrderByCreatedAtDesc — safe even when legacy duplicates exist
+            Optional<UserDeviceToken> existingToken =
+                    deviceTokenRepository.findFirstByDeviceTokenOrderByCreatedAtDesc(token);
             
             UserDeviceToken deviceToken;
             if (existingToken.isPresent()) {
@@ -119,7 +118,7 @@ public class DeviceTokenRefreshController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("tokenId", deviceToken.getId().toString());
-            response.put("isNew", !existingToken.isPresent());
+            response.put("isNew", existingToken.isEmpty());
             response.put("wasReactivated", existingToken.isPresent() && !existingToken.get().getIsActive());
             response.put("message", "Token refreshed successfully");
             

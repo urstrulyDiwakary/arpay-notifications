@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,13 +60,28 @@ public class DeviceTokenController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
             }
 
-            // Check if token already exists
-            Optional<UserDeviceToken> existingToken = deviceTokenRepository.findByDeviceToken(token);
-            
+            // Check if token already exists — use List to safely handle legacy duplicates
+            List<UserDeviceToken> existingTokens = deviceTokenRepository.findByDeviceToken(token);
+
             UserDeviceToken deviceToken;
-            if (existingToken.isPresent()) {
+            if (!existingTokens.isEmpty()) {
+                // Sort by createdAt desc — keep the newest record
+                existingTokens.sort(Comparator.comparing(
+                        t -> t.getCreatedAt() != null ? t.getCreatedAt() : LocalDateTime.MIN,
+                        Comparator.reverseOrder()));
+
+                deviceToken = existingTokens.getFirst();
+
+                // Delete any duplicates (all but the first/newest)
+                if (existingTokens.size() > 1) {
+                    List<UserDeviceToken> duplicates = existingTokens.subList(1, existingTokens.size());
+                    deviceTokenRepository.deleteAll(duplicates);
+                    log.warn("Removed {} duplicate device token entries for token prefix={}",
+                            duplicates.size(),
+                            token.length() > 20 ? token.substring(0, 20) : token);
+                }
+
                 // Update existing token
-                deviceToken = existingToken.get();
                 deviceToken.setLastUsedAt(LocalDateTime.now());
                 deviceToken.setIsActive(true);
                 if (deviceType != null) {
@@ -105,7 +121,7 @@ public class DeviceTokenController {
             }
 
             log.info("Registered device token for userId={}, tokenPrefix={}", 
-                    userId, token != null && token.length() > 20 ? token.substring(0, 20) : token);
+                    userId, token.length() > 20 ? token.substring(0, 20) : token);
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);

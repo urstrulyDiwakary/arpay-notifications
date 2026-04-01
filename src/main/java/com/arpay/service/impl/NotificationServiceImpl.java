@@ -6,15 +6,12 @@ import com.arpay.entity.Notification;
 import com.arpay.entity.NotificationOutbox;
 import com.arpay.entity.OutboxStatus;
 import com.arpay.entity.User;
-import com.arpay.entity.UserDeviceToken;
 import com.arpay.event.NotificationCreatedEvent;
 import com.arpay.notification.DeduplicationService;
 import com.arpay.notification.FirebasePushService;
-import com.arpay.notification.PushResult;
 import com.arpay.notification.UnreadCountCacheService;
 import com.arpay.repository.NotificationOutboxRepository;
 import com.arpay.repository.NotificationRepository;
-import com.arpay.repository.UserDeviceTokenRepository;
 import com.arpay.repository.UserRepository;
 import com.arpay.service.NotificationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -42,7 +39,6 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
-    private final UserDeviceTokenRepository deviceTokenRepository;
     private final FirebasePushService firebasePushService;
     private final DeduplicationService deduplicationService;
     private final UnreadCountCacheService unreadCountCacheService;
@@ -200,7 +196,6 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional(readOnly = true)
     public List<NotificationDTO> getRecentNotificationsByUserId(UUID userId, int limit) {
         log.info("Fetching recent notifications for userId={}, limit={}", userId, limit);
-        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt"));
         List<Notification> notifications = notificationRepository.findTop20ByUserIdOrderByCreatedAtDesc(userId);
 
         return notifications.stream()
@@ -284,7 +279,6 @@ public class NotificationServiceImpl implements NotificationService {
             return;
         }
 
-        NotificationDTO dto = buildNotificationDTO(userId, title, message, entityType, entityId, null);
         createNotificationIfNotExists(userId, title, message, entityType, entityId);
 
         // Mark as processed
@@ -309,11 +303,10 @@ public class NotificationServiceImpl implements NotificationService {
     public void notifyRole(String role, String title, String message, String entityType, UUID entityId, String route) {
         log.info("Sending notification to role={}, title={}", role, title);
         List<User> users = userRepository.findAllByRole(User.UserRole.valueOf(role.toUpperCase()));
-        List<UUID> userIds = users.stream().map(User::getId).collect(Collectors.toList());
+        List<UUID> userIds = users.stream().map(User::getId).toList();
 
         for (UUID userId : userIds) {
             try {
-                NotificationDTO dto = buildNotificationDTO(userId, title, message, entityType, entityId, route);
                 createNotificationIfNotExists(userId, title, message, entityType, entityId);
                 deduplicationService.markProcessed(userId, entityType, entityId);
             } catch (Exception e) {
@@ -362,103 +355,6 @@ public class NotificationServiceImpl implements NotificationService {
         createNotification(dto);
     }
 
-    /**
-     * Send Firebase push notification to user's device.
-     * Uses the UserDeviceToken table (primary) with fallback to User.deviceToken (legacy).
-     * Automatically invalidates device tokens that are permanently invalid (unregistered).
-     */
-    private void sendFirebasePushNotification(UUID userId, String title, String message, String entityType, UUID entityId) {
-        try {
-            // Fetch user
-            Optional<User> userOpt = userRepository.findById(userId);
-            if (userOpt.isEmpty()) {
-                log.warn("User not found for push notification: userId={}", userId);
-                return;
-            }
-
-            User user = userOpt.get();
-            
-            // Step 1: Try to get active token from UserDeviceToken table (primary source)
-            String deviceToken = getActiveDeviceToken(userId);
-            
-            // Step 2: Fallback to legacy User.deviceToken field
-            if (deviceToken == null || deviceToken.isBlank()) {
-                deviceToken = user.getDeviceToken();
-                log.debug("Using legacy User.deviceToken for userId={}", userId);
-            }
-
-            if (deviceToken == null || deviceToken.isBlank()) {
-                log.debug("No device token for userId={}, skipping push notification", userId);
-                return;
-            }
-
-            // Build push data
-            Map<String, String> data = new HashMap<>();
-            data.put("entityType", entityType != null ? entityType : "");
-            data.put("entityId", entityId != null ? entityId.toString() : "");
-            data.put("notificationType", "INFO");
-
-            // Send push notification and check result
-            PushResult result = firebasePushService.pushToDevice(deviceToken, title, message, data);
-
-            if (result.isSuccess()) {
-                log.info("Firebase push sent to userId={}, title={}", userId, title);
-            } else if (result.isTokenInvalid()) {
-                // Token is permanently invalid - mark as inactive in database
-                log.warn("Firebase push failed with invalid token for userId={}, invalidating token", userId);
-                invalidateDeviceToken(deviceToken, "FCM_UNREGISTERED");
-                
-                // Also clear the legacy User.deviceToken field if it matches
-                if (deviceToken.equals(user.getDeviceToken())) {
-                    user.setDeviceToken(null);
-                    userRepository.save(user);
-                    log.info("Cleared legacy deviceToken for userId={}", userId);
-                }
-            } else {
-                // Transient error - log but don't invalidate
-                log.warn("Firebase push failed for userId={} (transient error): {}", userId, result.getErrorMessage());
-            }
-        } catch (Exception e) {
-            log.error("Error sending Firebase push notification: {}", e.getMessage(), e);
-            // Don't throw - push failure should not affect notification creation
-        }
-    }
-
-    /**
-     * Get the first active device token for a user from UserDeviceToken table
-     */
-    private String getActiveDeviceToken(UUID userId) {
-        List<UserDeviceToken> activeTokens = deviceTokenRepository.findByUserIdAndIsActiveTrue(userId);
-        if (activeTokens.isEmpty()) {
-            return null;
-        }
-        // Return the most recently used token (first in the list)
-        return activeTokens.get(0).getDeviceToken();
-    }
-
-    /**
-     * Mark a device token as inactive due to FCM errors
-     */
-    private void invalidateDeviceToken(String deviceToken, String reason) {
-        try {
-            Optional<UserDeviceToken> tokenOpt = deviceTokenRepository.findByDeviceToken(deviceToken);
-            if (tokenOpt.isPresent()) {
-                UserDeviceToken token = tokenOpt.get();
-                token.setIsActive(false);
-                token.setInvalidatedAt(LocalDateTime.now());
-                token.setInvalidationReason(reason);
-                deviceTokenRepository.save(token);
-                log.info("Device token invalidated for reason={}: tokenId={}, userId={}", 
-                    reason, token.getId(), token.getUserId());
-            } else {
-                log.warn("Device token not found for invalidation: token={}", 
-                    deviceToken.substring(0, Math.min(20, deviceToken.length())));
-            }
-        } catch (Exception e) {
-            log.error("Failed to invalidate device token: {}", e.getMessage());
-        }
-    }
-
     @Override
     @Transactional
     public int retryDlqEvents(int limit) {
@@ -469,20 +365,6 @@ public class NotificationServiceImpl implements NotificationService {
 
     // Helper methods
 
-    private NotificationDTO buildNotificationDTO(UUID userId, String title, String message, String entityType, UUID entityId, String route) {
-        NotificationDTO dto = new NotificationDTO();
-        dto.setUserId(userId);
-        dto.setTitle(title);
-        dto.setMessage(message);
-        dto.setSeverity(Notification.Severity.NORMAL);
-        dto.setType(Notification.NotificationType.INFO);
-        dto.setIsRead(false);
-        dto.setEntityType(entityType);
-        dto.setEntityId(entityId);
-        dto.setNotificationEventId(UUID.randomUUID());
-        dto.setRoute(route);
-        return dto;
-    }
 
     private Notification toEntity(NotificationDTO dto) {
         Notification notification = new Notification();
