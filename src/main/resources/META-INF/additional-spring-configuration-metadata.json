@@ -566,6 +566,22 @@
       "type": "java.lang.String",
       "description": "Base URL of the Arpay backend service used for cross-service calls.",
       "defaultValue": "http://localhost:8080"
+    },
+    {
+      "name": "management.endpoint.health.probes.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether Kubernetes-style liveness and readiness health probes are enabled.",
+      "defaultValue": false
+    },
+    {
+      "name": "management.endpoint.health.group.liveness.include",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of health indicators included in the liveness probe group."
+    },
+    {
+      "name": "management.endpoint.health.group.readiness.include",
+      "type": "java.lang.String",
+      "description": "Comma-separated list of health indicators included in the readiness probe group."
     }
   ]
 }
