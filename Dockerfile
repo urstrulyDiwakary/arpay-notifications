@@ -52,15 +52,29 @@ RUN mkdir -p /app/certs /app/logs /app/firebase && \
 #   - Volume mount into /app/firebase/
 #   - Coolify secret file
 
+# =============================================================================
+# ⚠️  SECURITY: NO build-time ARGs for secrets.
+# Secrets (JWT_SECRET, DB_PASSWORD, INTERNAL_API_KEYS, etc.) must be injected
+# as RUNTIME environment variables via Coolify's "Environment Variables" panel,
+# NOT as "Build Variables". Build-time ARG values are visible in `docker history`
+# and in plain-text build logs — they get baked into the image layer cache.
+# =============================================================================
+
 # Switch to non-root user (security best practice)
 USER appuser
 
-# Expose application port (must match server.port default in application.properties)
+# Expose application port.
+# ⚠️  This is ALWAYS 8086. Do NOT override SERVER_PORT to a different value in
+#     Coolify; the port mapping and healthcheck are fixed to 8086. Setting
+#     SERVER_PORT=8080 (or any other value) will cause the app to listen on the
+#     wrong port, breaking healthchecks and routing with a 503 error.
 EXPOSE 8086
 
-# Health check configuration
+# Health check — port is intentionally hardcoded to 8086 (matches EXPOSE above).
+# Do NOT use ${SERVER_PORT} here: if Coolify overrides SERVER_PORT the healthcheck
+# would chase the wrong port while the app still binds on 8086.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVER_PORT:-8086}/actuator/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8086/actuator/health || exit 1
 
 # JVM security and performance options
 # -XX:+UseContainerSupport: Respect Docker memory/CPU limits
