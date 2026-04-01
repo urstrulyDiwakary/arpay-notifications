@@ -18,9 +18,9 @@ import java.util.UUID;
 
 /**
  * Device token management with refresh support.
- *
+ * <p>
  * CRITICAL: This endpoint solves token drift - the #1 cause of silent delivery failures.
- *
+ * <p>
  * Frontend should call this:
  * - On app login
  * - On app resume (if token changed)
@@ -37,7 +37,7 @@ public class DeviceTokenRefreshController {
     
     /**
      * Register or refresh device token.
-     *
+     * <p>
      * Call this from frontend whenever FCM token changes:
      * - App login
      * - Token refresh event
