@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # ARPAY Notifications — PROD Profile
 # Production-hardened: strict validation, tuned pools, minimal logging.
 # Activate with:  SPRING_PROFILES_ACTIVE=prod  or  --spring.profiles.active=prod
@@ -39,7 +39,6 @@ spring:
       connection-test-query: SELECT 1
       pool-name: ArpayNotificationsHikariPool
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate          # NEVER auto-update in prod
     show-sql: false

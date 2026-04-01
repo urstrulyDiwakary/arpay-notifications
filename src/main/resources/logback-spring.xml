@@ -1,0 +1,104 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <!-- =========================================================
+         DEV / DEFAULT: Human-readable colored console output
+         ========================================================= -->
+    <springProfile name="dev,default">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%cyan(%d{HH:mm:ss.SSS}) %highlight(%-5level) [%yellow(%X{requestId:-?})] %magenta(%logger{36}) - %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+        <root level="DEBUG">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+    <!-- =========================================================
+         PROD / PRODUCTION: JSON structured logging
+         - com.arpay → INFO  (suppresses DLQRetryScheduler /
+           ScheduledNotificationDispatcher / InternalAuthFilter DEBUG noise)
+         - root      → WARN
+         Both appenders are async so I/O never blocks Tomcat threads.
+         NOTE: Even if LOGGING_LEVEL_COM_ARPAY env var is set to DEBUG in
+         Coolify, the explicit <logger level="INFO"> here takes precedence
+         for the prod/production Spring profile.
+         ========================================================= -->
+    <springProfile name="prod,production">
+        <springProperty scope="context" name="LOG_FILE"        source="logging.file.name"        defaultValue="/app/logs/application.log"/>
+        <springProperty scope="context" name="LOG_MAX_SIZE"    source="logging.logback.rollingpolicy.max-file-size"    defaultValue="100MB"/>
+        <springProperty scope="context" name="LOG_MAX_HISTORY" source="logging.logback.rollingpolicy.max-history"       defaultValue="30"/>
+        <!-- Console — JSON / Logstash format -->
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <fieldNames>
+                    <version>[ignore]</version>
+                    <levelValue>[ignore]</levelValue>
+                    <timestamp>timestamp</timestamp>
+                </fieldNames>
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>clientIp</includeMdcKeyName>
+                <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                    <maxLength>4096</maxLength>
+                    <shortenedClassNameLength>25</shortenedClassNameLength>
+                    <rootCauseFirst>true</rootCauseFirst>
+                </throwableConverter>
+            </encoder>
+        </appender>
+        <!-- Rolling file — same JSON encoder, daily + size-capped -->
+        <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${LOG_FILE}</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${LOG_FILE}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>${LOG_MAX_SIZE}</maxFileSize>
+                <maxHistory>${LOG_MAX_HISTORY}</maxHistory>
+                <totalSizeCap>3GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <fieldNames>
+                    <version>[ignore]</version>
+                    <levelValue>[ignore]</levelValue>
+                    <timestamp>timestamp</timestamp>
+                </fieldNames>
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>userId</includeMdcKeyName>
+                <includeMdcKeyName>clientIp</includeMdcKeyName>
+                <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                    <maxLength>4096</maxLength>
+                    <shortenedClassNameLength>25</shortenedClassNameLength>
+                    <rootCauseFirst>true</rootCauseFirst>
+                </throwableConverter>
+            </encoder>
+        </appender>
+        <!-- Async console wrapper -->
+        <appender name="ASYNC_JSON_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+            <queueSize>512</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>false</neverBlock>
+            <appender-ref ref="JSON_CONSOLE"/>
+        </appender>
+        <!-- Async file wrapper — drop on disk stall rather than block -->
+        <appender name="ASYNC_JSON_FILE" class="ch.qos.logback.classic.AsyncAppender">
+            <queueSize>512</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>true</neverBlock>
+            <appender-ref ref="JSON_FILE"/>
+        </appender>
+        <!--
+             Hardcode INFO for all com.arpay loggers in this profile.
+             This gates DLQRetryScheduler, ScheduledNotificationDispatcher,
+             InternalAuthFilter and other workers that log at DEBUG internally.
+             additivity="false" prevents events from bubbling to root.
+        -->
+        <logger name="com.arpay" level="INFO" additivity="false">
+            <appender-ref ref="ASYNC_JSON_CONSOLE"/>
+            <appender-ref ref="ASYNC_JSON_FILE"/>
+        </logger>
+        <root level="WARN">
+            <appender-ref ref="ASYNC_JSON_CONSOLE"/>
+            <appender-ref ref="ASYNC_JSON_FILE"/>
+        </root>
+    </springProfile>
+</configuration>
