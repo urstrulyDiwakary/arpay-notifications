@@ -193,7 +193,7 @@ management:
         liveness:
           include: ping
         readiness:
-          include: db,redis
+          include: db,redis,configValidation
     prometheus:
       enabled: true
   metrics:

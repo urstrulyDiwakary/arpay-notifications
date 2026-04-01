@@ -70,11 +70,17 @@ USER appuser
 #     wrong port, breaking healthchecks and routing with a 503 error.
 EXPOSE 8086
 
-# Health check — port is intentionally hardcoded to 8086 (matches EXPOSE above).
+# Health check — uses the LIVENESS endpoint (ping only, no DB/Redis dependency).
+# This ensures the container stays "healthy" from Docker/Coolify's perspective
+# as long as the JVM is responding. Infrastructure issues (DB down, Redis down,
+# invalid config) are surfaced via the READINESS endpoint instead, and are
+# visible in the /actuator/health response and logs.
+#
+# Port is intentionally hardcoded to 8086 (matches EXPOSE above).
 # Do NOT use ${SERVER_PORT} here: if Coolify overrides SERVER_PORT the healthcheck
 # would chase the wrong port while the app still binds on 8086.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8086/actuator/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8086/actuator/health/liveness || exit 1
 
 # JVM security and performance options
 # -XX:+UseContainerSupport: Respect Docker memory/CPU limits
