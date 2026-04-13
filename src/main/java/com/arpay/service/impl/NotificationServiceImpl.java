@@ -249,23 +249,24 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public void deleteNotification(UUID id) {
         log.info("Deleting notification: id={}", id);
-        if (!notificationRepository.existsById(id)) {
-            throw new EntityNotFoundException("Notification not found with id: " + id);
-        }
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Notification not found with id: " + id));
+        boolean wasUnread = !Boolean.TRUE.equals(notification.getIsRead());
         notificationRepository.deleteById(id);
+        if (wasUnread) {
+            unreadCountCacheService.decrement(notification.getUserId());
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public long countUnreadByUserId(UUID userId) {
         log.info("Counting unread notifications for userId={}", userId);
-        // Try cache first
-        long cached = unreadCountCacheService.getUnreadCount(userId);
-        if (cached > 0) {
-            return cached;
-        }
-        // Fallback to database
-        return notificationRepository.countUnreadByUserId(userId);
+        // Always use DB as source of truth to prevent stale cache from misreporting count
+        long dbCount = notificationRepository.countUnreadByUserId(userId);
+        // Sync cache with DB to correct any drift caused by deletions or external changes
+        unreadCountCacheService.set(userId, dbCount);
+        return dbCount;
     }
 
     @Override

@@ -1,6 +1,12 @@
 package com.arpay.notification;
 
-import com.google.firebase.messaging.*;
+import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.ApnsConfig;
+import com.google.firebase.messaging.Aps;
+import com.google.firebase.messaging.BatchResponse;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.FirebaseMessagingException;
+import com.google.firebase.messaging.Message;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -123,65 +129,72 @@ public class FirebasePushService {
     }
 
     private Message buildMessage(String token, String title, String message, Map<String, String> data) {
-        Notification notification = Notification.builder()
-                .setTitle(title)
-                .setBody(message)
-                .build();
+        // Use a mutable copy so we don't mutate the caller's map
+        Map<String, String> fcmData = data != null ? new HashMap<>(data) : new HashMap<>();
 
-        // Generate a unique notification ID for proper Android notification handling
-        String notificationId = UUID.randomUUID().toString();
+        // Always include title and body in data so the service worker onBackgroundMessage
+        // handler can build the notification without a separate 'notification' payload.
+        fcmData.putIfAbsent("title", title != null ? title : "ARPAY Notification");
+        fcmData.putIfAbsent("body", message != null ? message : "");
 
-        Message.Builder builder = Message.builder()
-                .setToken(token)
-                .setNotification(notification)
-                .setAndroidConfig(AndroidConfig.builder()
-                        .setPriority(AndroidConfig.Priority.HIGH)
-                        .setNotification(AndroidNotification.builder()
-                                .setClickAction("OPEN_NOTIFICATION")
-                                .setChannelId("arpay_notifications") // Must match app's notification channel
-                                .build())
-                        .build())
-                .setApnsConfig(ApnsConfig.builder()
-                        .setAps(Aps.builder()
-                                .setCategory("NOTIFICATION")
-                                .setSound("default")
-                                .build())
-                        .build());
-
-        // Add notificationId to data payload for app handling
-        if (data != null) {
-            data.put("notificationId", notificationId);
-            builder.putAllData(data);
-        } else {
-            builder.putData("notificationId", notificationId);
+        // Preserve the caller-supplied notificationEventId / notificationId.
+        // Only generate a fallback id when neither key is present.
+        if (!fcmData.containsKey("notificationEventId") && !fcmData.containsKey("notificationId")) {
+            fcmData.put("notificationId", UUID.randomUUID().toString());
         }
 
-        return builder.build();
+        // ---------------------------------------------------------------
+        // DATA-ONLY message — no 'notification' payload.
+        //
+        // Rationale: when a message carries both a 'notification' payload
+        // AND a 'data' payload, Chrome/Firebase automatically displays the
+        // notification from the 'notification' field AND calls
+        // onBackgroundMessage() in the service worker, which would call
+        // showNotification() again — resulting in duplicate notifications.
+        //
+        // By sending a data-only message the service worker's
+        // onBackgroundMessage handler is the single place that creates the
+        // visible notification, giving it full control over title, body,
+        // icon, tag, route and requireInteraction.
+        // ---------------------------------------------------------------
+        return Message.builder()
+                .setToken(token)
+                // HIGH priority wakes up Android / Doze-mode devices and iOS in background.
+                .setAndroidConfig(AndroidConfig.builder()
+                        .setPriority(AndroidConfig.Priority.HIGH)
+                        .build())
+                // content-available=1 lets iOS wake the app in the background so the
+                // service worker can handle the data-only push.
+                .setApnsConfig(ApnsConfig.builder()
+                        .setAps(Aps.builder()
+                                .setContentAvailable(true)
+                                .setSound("default")
+                                .build())
+                        .build())
+                .putAllData(fcmData)
+                .build();
     }
 
     private Message buildTopicMessage(String topic, String title, String message, Map<String, String> data) {
-        Notification notification = Notification.builder()
-                .setTitle(title)
-                .setBody(message)
-                .build();
+        Map<String, String> fcmData = data != null ? new HashMap<>(data) : new HashMap<>();
+        fcmData.putIfAbsent("title", title != null ? title : "ARPAY Notification");
+        fcmData.putIfAbsent("body", message != null ? message : "");
+        if (!fcmData.containsKey("notificationEventId") && !fcmData.containsKey("notificationId")) {
+            fcmData.put("notificationId", UUID.randomUUID().toString());
+        }
 
-        Message.Builder builder = Message.builder()
+        return Message.builder()
                 .setTopic(topic)
-                .setNotification(notification)
                 .setAndroidConfig(AndroidConfig.builder()
                         .setPriority(AndroidConfig.Priority.HIGH)
                         .build())
                 .setApnsConfig(ApnsConfig.builder()
                         .setAps(Aps.builder()
-                                .setCategory("NOTIFICATION")
+                                .setContentAvailable(true)
                                 .setSound("default")
                                 .build())
-                        .build());
-
-        if (data != null && !data.isEmpty()) {
-            builder.putAllData(data);
-        }
-
-        return builder.build();
+                        .build())
+                .putAllData(fcmData)
+                .build();
     }
 }

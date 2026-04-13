@@ -183,14 +183,29 @@ public class NotificationWorker {
             outboxRepository.save(outbox);
             return;
         }
-        
-        // Build push data
+
+        // Extract message body and route from the outbox payload so the
+        // service worker has everything it needs to render the notification.
+        String body = payload.get("message") != null ? payload.get("message").toString() : "";
+        String route = payload.get("route") != null ? payload.get("route").toString() : null;
+
+        // Build push data — all fields carried in the FCM data payload.
+        // We use data-only messages (no FCM 'notification' field) to avoid
+        // the browser SDK showing a duplicate notification alongside the
+        // one created by onBackgroundMessage in firebase-messaging-sw.js.
         Map<String, String> data = new HashMap<>();
-        data.put("notificationId", notificationEventId.toString());
+        // notificationEventId is the stable event identity used by the SW
+        // for deduplication, routing, and read-tracking.
+        data.put("notificationEventId", notificationEventId.toString());
+        data.put("title", title);
+        data.put("body", body);
         data.put("entityType", entityType != null ? entityType : "");
         data.put("entityId", entityId != null ? entityId.toString() : "");
         data.put("userId", userId.toString());
-        
+        if (route != null && !route.isBlank()) {
+            data.put("route", route);
+        }
+
         // Track delivery results
         int successCount = 0;
         int failureCount = 0;
