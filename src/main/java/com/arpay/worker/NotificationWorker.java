@@ -23,7 +23,7 @@ import java.util.*;
 /**
  * Notification worker that processes outbox entries and sends push notifications.
  * Implements idempotent delivery to prevent duplicates on worker crashes.
- * 
+ * <p>
  * CRITICAL: This is NOT exactly-once delivery. It's at-least-once with deduplication.
  * Industry standard is "effectively-once" - duplicates are possible but detected and handled.
  */
@@ -44,19 +44,10 @@ public class NotificationWorker {
     
     @Value("${notification.retry.max-attempts:3}")
     private int maxRetryAttempts;
-    
-    @Value("${notification.queue.critical:notification:queue:critical}")
-    private String criticalQueue;
 
     @Value("${notification.queue.normal:notification:queue:normal}")
     private String normalQueue;
 
-    @Value("${notification.queue.low:notification:queue:low}")
-    private String lowQueue;
-
-    @Value("${notification.worker.max-inflight:200}")
-    private int maxInflight;
-    
     @Value("${notifications.worker.backpressure.enabled:true}")
     private boolean backpressureEnabled;
     
@@ -64,8 +55,10 @@ public class NotificationWorker {
     private int maxQueueDepth;
     
     /**
-     * Process a single outbox entry asynchronously on the critical executor
+     * Process a single outbox entry asynchronously on the critical executor.
+     * Retained for priority routing; dispatched by event listeners on high-priority events.
      */
+    @SuppressWarnings("unused")
     @Async("criticalNotificationExecutor")
     public void processCriticalOutboxEntry(UUID outboxId) {
         processOutboxEntry(outboxId, true);
@@ -86,7 +79,7 @@ public class NotificationWorker {
     public void processOutboxEntry(UUID outboxId, boolean isCritical) {
         MDC.put("outboxId", outboxId.toString());
         try {
-            doProcessOutboxEntry(outboxId, isCritical);
+            doProcessOutboxEntry(outboxId);
         } finally {
             MDC.remove("outboxId");
             MDC.remove("notificationEventId");
@@ -94,7 +87,7 @@ public class NotificationWorker {
         }
     }
 
-    private void doProcessOutboxEntry(UUID outboxId, boolean isCritical) {
+    private void doProcessOutboxEntry(UUID outboxId) {
         Optional<NotificationOutbox> outboxOpt;
         
         try {
@@ -142,13 +135,12 @@ public class NotificationWorker {
                 outbox.getEventPayload(), Map.class);
             
             // Process based on event type
-            switch (outbox.getEventType()) {
-                case "NOTIFICATION_CREATED" -> processNotificationCreated(outbox, payload);
-                default -> {
-                    log.warn("Unknown event type: {}", outbox.getEventType());
-                    outbox.markFailed("Unknown event type: " + outbox.getEventType());
-                    outboxRepository.save(outbox);
-                }
+            if ("NOTIFICATION_CREATED".equals(outbox.getEventType())) {
+                processNotificationCreated(outbox, payload);
+            } else {
+                log.warn("Unknown event type: {}", outbox.getEventType());
+                outbox.markFailed("Unknown event type: " + outbox.getEventType());
+                outboxRepository.save(outbox);
             }
             
         } catch (Exception e) {
@@ -387,10 +379,12 @@ public class NotificationWorker {
     }
     
     /**
-     * Publish event to Redis Stream (called from event listener)
+     * Publish event to Redis Stream (called from event listener).
+     * Retained for stream-based dispatch; callers need not use the returned stream record ID.
      */
+    @SuppressWarnings({"unused", "UnusedReturnValue"})
     public String publishToQueue(NotificationOutbox outbox) {
-        String queueKey = getQueueKeyForSeverity(outbox.getEventType());
+        String queueKey = getQueueKeyForSeverity();
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("outboxId", outbox.getId().toString());
@@ -410,18 +404,20 @@ public class NotificationWorker {
     }
     
     /**
-     * Get queue key based on notification severity
+     * Get queue key based on notification severity.
+     * Can be enhanced to route by severity when multiple priority queues are active.
      */
-    private String getQueueKeyForSeverity(String eventType) {
+    private String getQueueKeyForSeverity() {
         // For now, use normal queue for all events
-        // Can be enhanced to route based on severity from payload
         return normalQueue;
     }
     
     /**
-     * Poll and process pending outbox entries (fallback mechanism)
-     * Includes backpressure control to prevent system overload
+     * Poll and process pending outbox entries (fallback mechanism).
+     * Includes backpressure control to prevent system overload.
+     * Retained for direct invocation by schedulers or admin endpoints.
      */
+    @SuppressWarnings("unused")
     @Async("dlqRetryExecutor")
     public void processPendingOutboxEntries(int limit) {
         log.info("Processing pending outbox entries: limit={}", limit);

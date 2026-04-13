@@ -23,8 +23,8 @@ public class FirebasePushService {
     public FirebasePushService() {
     }
 
-    public boolean isAvailable() {
-        return firebaseMessaging != null;
+    public boolean isUnavailable() {
+        return firebaseMessaging == null;
     }
 
     /**
@@ -32,7 +32,7 @@ public class FirebasePushService {
      * @return PushResult indicating success, token invalid, or transient failure
      */
     public PushResult pushToDevice(String token, String title, String message, Map<String, String> data) {
-        if (!isAvailable() || token == null || token.isBlank()) {
+        if (isUnavailable() || token == null || token.isBlank()) {
             return PushResult.failed("FCM not available or token missing");
         }
 
@@ -87,10 +87,12 @@ public class FirebasePushService {
     }
 
     /**
-     * Send push to multiple device tokens (batch)
+     * Send push to multiple device tokens (batch).
+     * Retained for bulk-send scenarios; callers may discard the BatchResponse if not needed.
      */
+    @SuppressWarnings({"unused", "UnusedReturnValue"})
     public BatchResponse pushToDevices(List<String> tokens, String title, String message, Map<String, String> data) {
-        if (!isAvailable() || tokens == null || tokens.isEmpty()) {
+        if (isUnavailable() || tokens == null || tokens.isEmpty()) {
             return null;
         }
 
@@ -110,10 +112,12 @@ public class FirebasePushService {
     }
 
     /**
-     * Send push to all devices subscribed to a topic
+     * Send push to all devices subscribed to a topic.
+     * Returns true on success; callers may ignore the return value if fire-and-forget is sufficient.
      */
+    @SuppressWarnings("UnusedReturnValue")
     public boolean pushToTopic(String topic, String title, String message, Map<String, String> data) {
-        if (!isAvailable() || topic == null || topic.isBlank()) {
+        if (isUnavailable() || topic == null || topic.isBlank()) {
             return false;
         }
 
