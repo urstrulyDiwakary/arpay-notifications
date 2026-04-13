@@ -61,22 +61,15 @@ public class NotificationWorker {
     @SuppressWarnings("unused")
     @Async("criticalNotificationExecutor")
     public void processCriticalOutboxEntry(UUID outboxId) {
-        processOutboxEntry(outboxId, true);
+        processOutboxEntry(outboxId);
     }
 
     /**
-     * Process a single outbox entry asynchronously
+     * Process a single outbox entry asynchronously.
+     * Uses atomic claim to prevent duplicate processing.
      */
     @Async("normalNotificationExecutor")
     public void processOutboxEntry(UUID outboxId) {
-        processOutboxEntry(outboxId, false);
-    }
-    
-    /**
-     * Process a single outbox entry (internal method with priority flag)
-     * Uses atomic claim to prevent duplicate processing
-     */
-    public void processOutboxEntry(UUID outboxId, boolean isCritical) {
         MDC.put("outboxId", outboxId.toString());
         try {
             doProcessOutboxEntry(outboxId);
@@ -434,7 +427,7 @@ public class NotificationWorker {
         
         for (NotificationOutbox outbox : pending) {
             try {
-                processOutboxEntry(outbox.getId(), false);
+                processOutboxEntry(outbox.getId());
             } catch (Exception e) {
                 log.error("Error processing pending outbox: id={}", outbox.getId(), e);
             }
