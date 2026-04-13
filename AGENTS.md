@@ -5,13 +5,14 @@
 **ARPAY Notifications** is a production-grade Spring Boot 3 microservice for multi-channel notifications (FCM push, email, WebSocket). It's designed for high-throughput, reliable delivery with priority queues, idempotency, and circuit breakers.
 
 ### Core Components
-- **Controllers** (`controller/`): REST endpoints for notifications, device tokens, admin operations
-- **Services** (`service/`): Business logic (NotificationService, FirebasePushService, AlertService)
-- **Workers** (`worker/`): Async processors (NotificationWorker, DLQRetryScheduler, ScheduledNotificationDispatcher)
-- **Entities** (`entity/`): JPA models with Notification, NotificationOutbox (transactional outbox pattern), UserDeviceToken, etc.
+- **Controllers** (`controller/`): REST endpoints — NotificationController, NotificationAdminController (health dashboard, DLQ management, delivery tracing), DeviceTokenController, DeviceTokenRefreshController (token drift prevention)
+- **Services** (`service/`): Business logic — NotificationService, AlertService (Slack webhook integration), InternalAuthService, plus observability: ActiveMonitoringService, HardLimitsAlertingService, QueueMetricsService (Prometheus gauges), TimeToRecoveryService (SRE overload tracking)
+- **Workers** (`worker/`): Async processors — NotificationWorker, NotificationEventListener, DLQRetryScheduler, ScheduledNotificationDispatcher, BackpressureMonitor (dynamic rate-limit adjustment), OutboxStartupRecovery (recovers stuck entries on JVM restart)
+- **Entities** (`entity/`): JPA models — Notification, NotificationOutbox, OutboxStatus (enum: PENDING→QUEUED→PUBLISHED/FAILED/DEAD_LETTER), UserDeviceToken, User, DeliveryIdempotencyKey, NotificationDlqEntry, NotificationDeliveryLog, NotificationEngagementLog, NotificationEventState
 - **Repositories** (`repository/`): Spring Data JPA for database access
-- **Filters** (`filter/`): InternalAuthFilter (API key validation), RateLimitFilter (rate limiting via Guava)
-- **Config** (`config/`): AsyncConfig (multi-level thread pools), SecurityConfig, FirebaseConfig, RedisConfig
+- **Filters** (`filter/`): InternalAuthFilter (API key validation), PriorityRejectionFilter (priority-based load shedding under queue pressure), RateLimitFilter (rate limiting via Guava with backpressure adjustment)
+- **Config** (`config/`): AsyncConfig (multi-level thread pools), SecurityConfig (includes CORS), FirebaseConfig, RedisConfig, JpaConfig (JdbcTemplate + transaction management), JsonConfig (Jackson with Java 8 time), ConfigurationValidator (startup config health check exposed via `/actuator/health`), RecoveryProperties (`@ConfigurationProperties` for outbox recovery)
+- **Notification** (`notification/`): Channel providers — FirebasePushService, DeduplicationService (Redis SETNX atomic dedup), UnreadCountCacheService (Redis unread count cache), PushResult (FCM result model)
 
 ### Data Flow
 1. **Notification Creation** → API receives POST request
@@ -62,9 +63,29 @@ Located in `config/AsyncConfig.java`.
 ### Rate Limiting
 Located in `filter/RateLimitFilter.java` using Guava's RateLimiter.
 
-**Levels**: Global (1000 req/s), per-endpoint (100 req/s), per-client (10 req/s). Configured via `application.properties` `rate-limit.*` properties.
+**Levels**: Global (1000 req/s), per-endpoint (100 req/s), per-client (10 req/s). Configured via `application.properties` `notifications.ratelimit.*` properties.
 
 **When modifying**: Add new rate limit rules in filter; maintain backward compatibility with existing clients.
+
+### Backpressure & Priority-Based Load Shedding
+Located in `worker/BackpressureMonitor.java` and `filter/PriorityRejectionFilter.java`.
+
+**How it works**:
+- `BackpressureMonitor` runs every 5s, samples outbox queue depth (PENDING + QUEUED), computes a pressure ratio (0.0–1.0), and dynamically scales down the global rate limiter via `RateLimitFilter.adjustForBackpressure(ratio)`. Fails open (no throttle on error).
+- `PriorityRejectionFilter` (`@Order(1)`, runs before RateLimitFilter) implements graceful degradation on POST `/api/notifications/*/send*`:
+  - Queue >70%: reject LOW priority
+  - Queue >85%: reject LOW + NORMAL
+  - Queue >90%: reject all except CRITICAL
+  - Priority determined from `X-Priority` header or `X-Entity-Type` header (PAYMENT/FRAUD→CRITICAL, APPROVAL→NORMAL, MARKETING→LOW; default NORMAL)
+
+**When modifying**: Threshold percentages are configurable via `notifications.priority.rejection.*` properties. Always allow CRITICAL through.
+
+### Outbox Startup Recovery
+Located in `worker/OutboxStartupRecovery.java` (implements `ApplicationRunner`).
+
+**How it works**: On JVM startup, finds outbox entries stuck in PENDING (never dispatched) or QUEUED (dispatched but never completed due to crash), and re-dispatches them via `NotificationWorker.processOutboxEntry()`. Safe because delivery is idempotent via `DeliveryIdempotencyKey`.
+
+**Configuration**: `notifications.recovery.*` properties (enabled, stuck-minutes, batch-size) bound to `config/RecoveryProperties.java`.
 
 ### Internal API Authentication
 Located in `filter/InternalAuthFilter.java` and `service/InternalAuthService.java`.
@@ -79,31 +100,29 @@ Located in `filter/InternalAuthFilter.java` and `service/InternalAuthService.jav
 
 ### Local Build
 ```bash
-cd arpay-notifications/arpay-notifications
+# From project root (where pom.xml lives)
 mvn clean package -DskipTests
 ```
 
 ### Local Run with Docker Compose
 ```bash
-# From arpay-notifications/arpay-notifications
-docker compose up -d
+# From project root
+docker compose --profile standalone up -d
 # App on http://localhost:8086
 # Check health: http://localhost:8086/actuator/health
 ```
 
 ### Local Run Direct (Maven)
-```bash
-# Set environment variables
-$env:DB_PASSWORD = "your-password"
-$env:REDIS_PASSWORD = "your-password"
-$env:FIREBASE_ENABLED = "false"  # Disable for local dev
+```powershell
+# Set environment variables (or use the convenience script)
+.\set-dev-env.ps1
 
 mvn spring-boot:run
 ```
 
-### Test Integration (from workspace root)
+### Test Notifications (from workspace root)
 ```powershell
-.\test-integration.ps1  # Runs full integration test suite
+.\test-notifications.ps1  # Runs API tests against http://localhost:8086
 ```
 
 ### Key Maven Profiles
@@ -116,6 +135,7 @@ Located in `src/main/resources/db/migration/` (Flyway convention).
 - V2: Performance indexes
 - V3: Delivery idempotency keys
 - V4: Scheduled notifications support
+- V5: QUEUED outbox status, DLQ exponential backoff (`next_retry_at`), recovery indexes
 
 ---
 
@@ -159,17 +179,29 @@ notification.worker.max-inflight=200
 notification.retry.max-attempts=3
 notification.dlq.retry-interval-minutes=5
 
-# Rate limits (per-second)
-rate-limit.global-limit=1000
-rate-limit.endpoint-limit=100
-rate-limit.client-limit=10
+# Rate limits (per-second) — note: prefix is notifications.ratelimit.*
+notifications.ratelimit.global-permits-per-second=1000
+notifications.ratelimit.per-endpoint-permits-per-second=100
+notifications.ratelimit.per-client-permits-per-second=10
+
+# Backpressure & priority rejection
+notifications.worker.backpressure.max-queue-depth=10000
+notifications.priority.rejection.enabled=true
+notifications.priority.rejection.low-threshold-percent=70
+notifications.priority.rejection.normal-threshold-percent=85
+
+# Startup recovery
+notifications.recovery.enabled=true
+notifications.recovery.stuck-minutes=5
+notifications.recovery.batch-size=200
 
 # Firebase
 firebase.enabled=true
 firebase.service-account-key-path=classpath:firebase/firebase-service-account.json
 
 # Database
-spring.jpa.hibernate.ddl-auto=update  # Use 'validate' in production
+spring.jpa.properties.hibernate.jdbc.batch_size=50
+spring.jpa.open-in-view=false
 ```
 
 ---
@@ -202,10 +234,11 @@ spring.jpa.hibernate.ddl-auto=update  # Use 'validate' in production
 ## Deployment & Infrastructure
 
 ### Docker & Coolify
-- Single-stage build in `Dockerfile` (uses .dockerignore to exclude unnecessary files)
+- Multi-stage build in `Dockerfile` (Maven builder + JRE-alpine runtime; uses .dockerignore to exclude unnecessary files)
 - Environment-based configuration via `.env` file
-- Healthcheck configured for container orchestration
-- Non-root user `app` for security
+- Healthcheck configured for container orchestration (liveness endpoint on port 8086)
+- Non-root user `appuser` for security
+- Docker Compose profiles: `standalone` (local PostgreSQL + Redis), `monitoring` (Prometheus + Grafana), `with-nginx`
 
 ### Required Secrets (Environment Variables)
 ```bash
@@ -226,12 +259,16 @@ FIREBASE_ENABLED      # true/false
 ## External Dependencies & Integration Points
 
 ### Primary Dependencies
-- **Spring Boot 3.4** - Web framework and core
+- **Spring Boot 3.4** (3.4.5) - Web framework and core (Java 21)
 - **PostgreSQL 16+** - Persistent storage (JPA/Hibernate)
-- **Redis 7+** - Queue (Spring Data Redis)
-- **Firebase Admin SDK 9.3** - FCM push notifications
-- **Guava 32** - Rate limiting (RateLimiter)
+- **Redis 7+** - Queue and cache (Spring Data Redis + Lettuce pool)
+- **Firebase Admin SDK 9.8** - FCM push notifications
+- **Guava 33** - Rate limiting (RateLimiter)
+- **Micrometer + Prometheus** - Metrics and observability
+- **JJWT 0.12** - JWT token handling
+- **Logstash Logback Encoder** - Structured JSON logging in production
 - **Lombok** - Code generation (getters, constructors, logging)
+- **Spotless / PMD** - Code formatting enforcement and static analysis (Maven plugins)
 
 ### Integration Points
 - **Backend Service** - Calls `/api/notifications/send/*` endpoints to trigger notifications
@@ -255,7 +292,7 @@ FIREBASE_ENABLED      # true/false
 3. Update `NotificationService` interface and implementation
 4. Add entity fields to `Notification` if schema change needed
 5. Create migration script in `db/migration/V{N}__*.sql`
-6. Test with `test-integration.ps1`
+6. Test with `test-notifications.ps1`
 
 ### Adding a New Channel (e.g., SMS)
 1. Create `notification/SMSService.java` similar to `FirebasePushService`
@@ -273,11 +310,14 @@ FIREBASE_ENABLED      # true/false
 
 ## Useful References
 - **README.md**: Feature overview, quick start, deployment steps
-- **DEPLOYMENT.md**: Detailed Coolify deployment guide
-- **SECURITY.md**: Security checklist, JWT configuration
-- **TESTING_GUIDE.md**: Integration testing with backend/frontend
-- **docker-compose.yml**: Local development stack with PostgreSQL, Redis, Firebase mock
+- **LOCAL_SETUP_GUIDE.md**: Local development setup instructions
+- **docker-compose.yml**: Local development stack with PostgreSQL, Redis, Prometheus, Grafana
+- **set-dev-env.ps1**: Convenience script to set all dev environment variables
+- **test-notifications.ps1**: API integration tests against local instance
 - **AsyncConfig.java**: Thread pool configuration and tuning
 - **NotificationWorker.java**: Core processing logic with idempotency
 - **InternalAuthFilter.java**: API key validation for internal endpoints
+- **BackpressureMonitor.java**: Dynamic rate-limit adjustment based on queue depth
+- **ConfigurationValidator.java**: Startup config validation and health indicator
+- **logback-spring.xml**: Profile-based logging (colored console in dev, JSON in prod)
 
