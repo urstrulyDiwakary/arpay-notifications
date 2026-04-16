@@ -319,22 +319,30 @@ public class NotificationWorker {
             token.resetFcmErrorCount();
             token.touch();
             log.debug("Push sent successfully: deliveryId={}", deliveryId);
+        } else if (result.isTokenInvalid()) {
+            // FCM explicitly said the token is invalid (NOT_FOUND / UNREGISTERED).
+            // Immediately deactivate the token — no retries needed.
+            idempotencyKey.setStatus(DeliveryIdempotencyKey.DeliveryStatus.PERMANENT_FAILURE);
+            idempotencyKey.markFailed("FCM_TOKEN_INVALID", result.getErrorMessage());
+            token.markInvalid("FCM_TOKEN_INVALID", result.getErrorMessage());
+            log.warn("FCM token immediately deactivated (NOT_FOUND/UNREGISTERED): tokenId={}, userId={}, deliveryId={}",
+                    token.getId(), token.getUserId(), deliveryId);
         } else {
             idempotencyKey.markFailed("FCM_ERROR", result.getErrorMessage());
             token.incrementFcmErrorCount();
 
-            // Check for permanent failure patterns
+            // Also check error message for permanent failure patterns (belt-and-suspenders)
             if (isPermanentFailure(result.getErrorMessage())) {
                 idempotencyKey.setStatus(DeliveryIdempotencyKey.DeliveryStatus.PERMANENT_FAILURE);
                 token.markInvalid("FCM_PERMANENT_FAILURE", idempotencyKey.getErrorMessage());
-                log.warn("Token marked as permanently failed: tokenId={}, deliveryId={}", 
+                log.warn("Token marked as permanently failed via message pattern: tokenId={}, deliveryId={}",
                         token.getId(), deliveryId);
             }
-            
-            // Mark token invalid after 3 consecutive failures
+
+            // Mark token invalid after 3 consecutive transient failures
             if (token.getFcmErrorCount() >= 3) {
                 token.markInvalid("FCM_ERROR", "Failed 3 consecutive times");
-                log.warn("Device token marked invalid due to FCM errors: tokenId={}", token.getId());
+                log.warn("Device token marked invalid due to repeated FCM errors: tokenId={}", token.getId());
             }
         }
         
@@ -342,7 +350,15 @@ public class NotificationWorker {
         idempotencyKeyRepository.save(idempotencyKey);
 
         // --- Observability: record delivery attempt in structured log ---
-        DeliveryResult deliveryResult = result.isSuccess() ? DeliveryResult.SUCCESS : DeliveryResult.FAILED;
+        DeliveryResult deliveryResult;
+        if (result.isSuccess()) {
+            deliveryResult = DeliveryResult.SUCCESS;
+        } else if (result.isTokenInvalid()
+                || idempotencyKey.getStatus() == DeliveryIdempotencyKey.DeliveryStatus.PERMANENT_FAILURE) {
+            deliveryResult = DeliveryResult.PERMANENT_FAILURE;
+        } else {
+            deliveryResult = DeliveryResult.FAILED;
+        }
         saveDeliveryLog(notificationId, notificationEventId, token, idempotencyKey, deliveryResult);
 
         // --- Metrics ---
