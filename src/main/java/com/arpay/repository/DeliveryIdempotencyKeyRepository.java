@@ -88,10 +88,13 @@ public interface DeliveryIdempotencyKeyRepository extends JpaRepository<Delivery
                        @Param("sentThreshold") LocalDateTime sentThreshold);
     
     /**
-     * Get delivery success rate in time window
+     * Get delivery success rate in time window.
+     * Returns NULL (not 0.0) when there are no records in the window — callers
+     * interpret NULL as "no data" and default to 100% so an empty table never
+     * triggers a false "success rate below threshold" alert.
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN d.status = 'SENT' THEN 1 END) * 1.0 / COUNT(*) as successRate " +
+           "COUNT(CASE WHEN d.status = 'SENT' THEN 1 END) * 1.0 / NULLIF(COUNT(*), 0) " +
            "FROM DeliveryIdempotencyKey d " +
            "WHERE d.createdAt > :threshold")
     Double getSuccessRate(@Param("threshold") LocalDateTime threshold);
