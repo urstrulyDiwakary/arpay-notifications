@@ -69,6 +69,7 @@ public class HardLimitsAlertingService {
     private LocalDateTime lastQueueAgeAlertTime = LocalDateTime.MIN;
     private LocalDateTime lastProcessingRateAlertTime = LocalDateTime.MIN;
     private LocalDateTime lastQueueDepthAlertTime = LocalDateTime.MIN;
+    private LocalDateTime lastSuccessRateAlertTime = LocalDateTime.MIN;  // was missing — caused 30-s alert spam
 
     private static final long ALERT_COOLDOWN_MS = 300000; // 5 minutes
 
@@ -267,38 +268,46 @@ public class HardLimitsAlertingService {
     }
 
     /**
-     * Check success rate against threshold
+     * Check success rate against threshold.
+     * Uses a 1-hour rolling window so historical failures from before Firebase
+     * was configured do not permanently suppress the metric to 0%.
+     * Guarded by the same 5-minute cooldown used by all other checks.
      */
     private void checkSuccessRate() {
         try {
-            long sent = deliveryLogRepository.countByChannelAndStatus(
-                com.arpay.entity.NotificationDeliveryLog.Channel.PUSH,
-                com.arpay.entity.NotificationDeliveryLog.Status.SENT
-            );
+            LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
 
-            long failed = deliveryLogRepository.countByChannelAndStatus(
+            // Use windowed distinct-notification counts to avoid all-time pollution
+            long sent = deliveryLogRepository.countDistinctNotificationIdsByChannelStatusSince(
                 com.arpay.entity.NotificationDeliveryLog.Channel.PUSH,
-                com.arpay.entity.NotificationDeliveryLog.Status.FAILED
-            );
+                com.arpay.entity.NotificationDeliveryLog.Status.SENT,
+                oneHourAgo);
+
+            long failed = deliveryLogRepository.countDistinctNotificationIdsByChannelStatusSince(
+                com.arpay.entity.NotificationDeliveryLog.Channel.PUSH,
+                com.arpay.entity.NotificationDeliveryLog.Status.FAILED,
+                oneHourAgo);
 
             long total = sent + failed;
             if (total == 0) {
-                return; // No data
+                return; // No data in the last hour — nothing to alert on
             }
 
             double successRate = (double) sent / total * 100;
 
-            if (successRate < successRateThreshold) {
+            if (successRate < successRateThreshold && canSendAlert(lastSuccessRateAlertTime)) {
                 Map<String, Object> alerts = new HashMap<>();
                 alerts.put("success_rate", String.format("%.2f%%", successRate));
                 alerts.put("threshold", successRateThreshold + "%");
                 alerts.put("sent", sent);
                 alerts.put("failed", failed);
                 alerts.put("total", total);
+                alerts.put("window", "last 1 hour");
                 alerts.put("action", "Investigate Firebase errors, check circuit breaker status");
                 alerts.put("timestamp", LocalDateTime.now().toString());
 
                 alertService.sendAlert("WARNING: Success Rate Below Threshold", alerts);
+                lastSuccessRateAlertTime = LocalDateTime.now();
             }
         } catch (Exception e) {
             log.debug("Success rate check failed: {}", e.getMessage());

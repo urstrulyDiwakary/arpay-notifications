@@ -103,6 +103,11 @@ spring:
 # ── Firebase ──────────────────────────────────────────────────────────────────
 firebase:
   enabled: ${FIREBASE_ENABLED:true}
+  # Option 1 (recommended for Coolify): base64-encoded JSON content
+  # Generate: base64 -w 0 firebase-service-account.json
+  # Set as env var FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 in Coolify — no volume mount needed.
+  service-account-json-base64: ${FIREBASE_SERVICE_ACCOUNT_JSON_BASE64:}
+  # Option 2 (fallback): path to mounted JSON file
   service-account-key-path: ${FIREBASE_SERVICE_ACCOUNT_KEY_PATH:/app/firebase/firebase-service-account.json}
 
 # ── Worker pools (production scale) ──────────────────────────────────────────

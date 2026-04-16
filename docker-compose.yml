@@ -35,6 +35,10 @@ services:
       
       # Firebase Configuration
       - FIREBASE_ENABLED=${FIREBASE_ENABLED:-true}
+      # Recommended for Coolify: base64-encoded service account JSON (no volume mount needed)
+      # Generate: base64 -w 0 firebase-service-account.json
+      - FIREBASE_SERVICE_ACCOUNT_JSON_BASE64=${FIREBASE_SERVICE_ACCOUNT_JSON_BASE64:-}
+      # Fallback: path to JSON file mounted via the firebase-credentials volume below
       - FIREBASE_SERVICE_ACCOUNT_KEY_PATH=/app/firebase/firebase-service-account.json
       
       # JWT Security

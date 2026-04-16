@@ -7,6 +7,7 @@ import com.google.firebase.messaging.BatchResponse;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,31 @@ public class FirebasePushService {
     private FirebaseMessaging firebaseMessaging;
 
     public FirebasePushService() {
+    }
+
+    /**
+     * Log Firebase availability at startup so the root cause of delivery
+     * failures is immediately visible — no need to trigger a push to find out.
+     * All FCM calls are skipped (and delivery attempts recorded as FAILED)
+     * when {@code firebaseMessaging} is null.
+     */
+    @PostConstruct
+    public void logFirebaseStatus() {
+        if (firebaseMessaging == null) {
+            log.warn("╔══════════════════════════════════════════════════════════════╗");
+            log.warn("║  FIREBASE FCM IS DISABLED — push notifications will NOT be  ║");
+            log.warn("║  delivered to devices. Delivery is silently skipped; outbox  ║");
+            log.warn("║  entries are marked FCM_DISABLED (not FAILED).               ║");
+            log.warn("║                                                              ║");
+            log.warn("║  To enable FCM push:                                         ║");
+            log.warn("║    1. Set FIREBASE_ENABLED=true                              ║");
+            log.warn("║    2. Set FIREBASE_SERVICE_ACCOUNT_JSON_BASE64=<base64 JSON> ║");
+            log.warn("║       (generate: base64 -w 0 firebase-service-account.json)  ║");
+            log.warn("║    3. Ensure the service account is for the correct project  ║");
+            log.warn("╚══════════════════════════════════════════════════════════════╝");
+        } else {
+            log.info("Firebase FCM initialized successfully — push delivery is ACTIVE.");
+        }
     }
 
     public boolean isUnavailable() {

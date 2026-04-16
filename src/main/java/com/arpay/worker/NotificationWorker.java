@@ -158,7 +158,21 @@ public class NotificationWorker {
             UUID.fromString(payload.get("entityId").toString()) : null;
         UUID notificationId = UUID.fromString(payload.get("notificationId").toString());
         UUID notificationEventId = outbox.getNotificationEventId();
-        
+
+        // ---------------------------------------------------------------
+        // Short-circuit when Firebase is unavailable (FIREBASE_ENABLED=false
+        // or key file missing).  Do NOT create DeliveryIdempotencyKey records
+        // — they would be recorded as FAILED and drive the success-rate
+        // monitor to 0%, even though push delivery is intentionally disabled.
+        // ---------------------------------------------------------------
+        if (firebasePushService.isUnavailable()) {
+            log.debug("Firebase FCM unavailable — skipping push delivery: outboxId={}, eventId={}",
+                     outbox.getId(), notificationEventId);
+            outbox.markPublished("FCM_DISABLED");
+            outboxRepository.save(outbox);
+            return;
+        }
+
         // Get active device tokens for user
         List<UserDeviceToken> tokens = deviceTokenRepository.findByUserIdAndIsActiveTrue(userId);
         

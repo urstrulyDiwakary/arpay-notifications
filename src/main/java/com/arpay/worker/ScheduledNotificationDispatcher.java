@@ -119,9 +119,18 @@ public class ScheduledNotificationDispatcher {
     
     /**
      * Send Firebase push notification to user's device.
+     * When Firebase is unavailable (FIREBASE_ENABLED=false), the push is
+     * silently skipped — the notification already exists in the DB so the
+     * caller will still mark it SENT.  No exception is thrown so the
+     * dispatcher does not flip the notification to FAILED status.
      */
     private void sendFirebasePushNotification(UUID userId, String deviceToken, String title, String message, 
                                                String entityType, UUID entityId) {
+        if (firebasePushService.isUnavailable()) {
+            log.debug("Firebase FCM unavailable — skipping scheduled push for userId={}", userId);
+            return; // Caller marks notification SENT; no exception, no FAILED record
+        }
+
         try {
             // Build push data
             Map<String, String> data = new HashMap<>();

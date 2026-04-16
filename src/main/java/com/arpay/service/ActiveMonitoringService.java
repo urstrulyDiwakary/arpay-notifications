@@ -95,24 +95,19 @@ public class ActiveMonitoringService {
     }
     
     /**
-     * Calculate success rate for last hour
+     * Calculate success rate for the last hour.
+     * Uses the windowed {@code getSuccessRate(threshold)} query instead of
+     * all-time {@code countByStatus()} so that old failures from before
+     * Firebase was configured do not permanently drive the metric to 0%.
      */
     private double calculateSuccessRate() {
-        long sent = idempotencyKeyRepository.countByStatus(
-            com.arpay.entity.DeliveryIdempotencyKey.DeliveryStatus.SENT
-        );
-        long failed = idempotencyKeyRepository.countByStatus(
-            com.arpay.entity.DeliveryIdempotencyKey.DeliveryStatus.FAILED
-        );
-        long permanentFailures = idempotencyKeyRepository.countByStatus(
-            com.arpay.entity.DeliveryIdempotencyKey.DeliveryStatus.PERMANENT_FAILURE
-        );
-        
-        long total = sent + failed + permanentFailures;
-        if (total == 0) {
+        Double rate = idempotencyKeyRepository.getSuccessRate(
+            java.time.LocalDateTime.now().minusHours(1));
+
+        // getSuccessRate returns null when the table is empty or no rows in window
+        if (rate == null) {
             return 100.0;
         }
-        
-        return (double) sent / total * 100;
+        return rate * 100; // repo returns a fraction (0.0–1.0), convert to percent
     }
 }
