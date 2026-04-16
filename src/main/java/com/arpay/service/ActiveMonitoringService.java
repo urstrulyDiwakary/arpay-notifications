@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Active monitoring service - turns passive dashboard into active alerting.
- * 
+ * <p>
  * Runs every 5 minutes and alerts on:
  * - Low success rate (< 90%)
  * - High DLQ size (> 50)

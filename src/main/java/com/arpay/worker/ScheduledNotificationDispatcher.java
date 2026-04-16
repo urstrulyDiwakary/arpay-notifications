@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -114,7 +113,7 @@ public class ScheduledNotificationDispatcher {
             return null;
         }
         // Return the most recently used token (first in the list)
-        return activeTokens.get(0).getDeviceToken();
+        return activeTokens.getFirst().getDeviceToken();
     }
     
     /**

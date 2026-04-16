@@ -149,7 +149,7 @@ public class HardLimitsAlertingService {
                 return; // No pending notifications
             }
 
-            var oldestPending = pendingList.get(0);
+            var oldestPending = pendingList.getFirst();
             LocalDateTime createdAt = oldestPending.getCreatedAt();
             long ageSeconds = java.time.Duration.between(createdAt, LocalDateTime.now()).getSeconds();
 
