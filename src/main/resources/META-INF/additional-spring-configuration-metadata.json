@@ -336,18 +336,6 @@
       "defaultValue": 90
     },
     {
-      "name": "notifications.simple-mode",
-      "type": "java.lang.Boolean",
-      "description": "Enables simple (non-queued) notification delivery mode.",
-      "defaultValue": false
-    },
-    {
-      "name": "notifications.simple-mode.push",
-      "type": "java.lang.Boolean",
-      "description": "Enables simple push delivery within simple mode.",
-      "defaultValue": true
-    },
-    {
       "name": "notification.worker.enabled",
       "type": "java.lang.Boolean",
       "description": "Whether the async notification worker is active.",
@@ -492,9 +480,15 @@
     {
       "name": "firebase.service-account-key-path",
       "type": "java.lang.String",
-      "description": "Classpath or file-system path to the Firebase service-account JSON credential.",
+      "description": "Classpath or file-system path to the Firebase service-account JSON credential. Superseded by firebase.service-account-json-base64 when that is set.",
       "sourceType": "com.arpay.config.FirebaseConfig",
       "defaultValue": "classpath:firebase/firebase-service-account.json"
+    },
+    {
+      "name": "firebase.service-account-json-base64",
+      "type": "java.lang.String",
+      "description": "Base64-encoded content of the Firebase service-account JSON file. Preferred for Coolify deployments — no volume mount required. Generate with: base64 -w 0 firebase-service-account.json",
+      "sourceType": "com.arpay.config.FirebaseConfig"
     },
     {
       "name": "internal.api.keys",

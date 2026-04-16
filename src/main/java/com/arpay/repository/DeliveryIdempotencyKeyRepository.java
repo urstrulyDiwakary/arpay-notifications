@@ -24,6 +24,7 @@ public interface DeliveryIdempotencyKeyRepository extends JpaRepository<Delivery
     /**
      * Check if delivery ID exists (for idempotency check)
      */
+    @SuppressWarnings("unused")
     boolean existsByDeliveryId(String deliveryId);
     
     /**
@@ -42,6 +43,7 @@ public interface DeliveryIdempotencyKeyRepository extends JpaRepository<Delivery
     /**
      * Find failed deliveries for a specific token
      */
+    @SuppressWarnings("unused")
     @Query("SELECT d FROM DeliveryIdempotencyKey d " +
            "WHERE d.deviceToken = :token AND d.status = 'FAILED' " +
            "ORDER BY d.createdAt DESC")
@@ -72,6 +74,7 @@ public interface DeliveryIdempotencyKeyRepository extends JpaRepository<Delivery
     /**
      * Mark as permanent failure (for poison messages)
      */
+    @SuppressWarnings("unused")
     @Modifying
     @Query("UPDATE DeliveryIdempotencyKey d SET d.status = 'PERMANENT_FAILURE' " +
            "WHERE d.deliveryId = :deliveryId")
@@ -80,6 +83,7 @@ public interface DeliveryIdempotencyKeyRepository extends JpaRepository<Delivery
     /**
      * Cleanup expired idempotency keys
      */
+    @SuppressWarnings("unused")
     @Modifying
     @Query("DELETE FROM DeliveryIdempotencyKey d " +
            "WHERE d.expiresAt < :threshold OR " +
