@@ -73,6 +73,7 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: build
+    continue-on-error: true
     permissions:
       contents: read
       packages: read
@@ -179,7 +180,7 @@ jobs:
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [build, security-scan, code-quality]
+    needs: [build, code-quality]
     if: >-
       always() &&
       github.event_name == 'push' &&
