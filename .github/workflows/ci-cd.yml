@@ -92,40 +92,21 @@ jobs:
       - name: Build project for dependency analysis
         run: mvn -B clean compile -DskipTests
 
-      - name: Run OWASP Dependency Check
-        uses: dependency-check/Dependency-Check_Action@main
-        id: DepCheck
+      - name: Run OWASP Dependency Check (Maven Plugin)
         continue-on-error: true
-        env:
-          JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-jdk/${{ env.JAVA_VERSION }}*/x64
-        with:
-          project: 'arpay-notifications'
-          path: '.'
-          format: 'HTML'
-          out: 'reports'
-          args: >
-            --failOnCVSS 9
-            --enableRetired
-            --nvdApiKey ${{ secrets.NVD_API_KEY }}
+        run: mvn -B org.owasp:dependency-check-maven:check -Dformat=HTML -DfailOnCVSS=9 -DenableRetired=true -DnvdApiKey=${{ secrets.NVD_API_KEY }}
 
       - name: Upload OWASP Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: dependency-check-report
-          path: reports/
+          path: target/dependency-check-report.*
           if-no-files-found: warn
 
-      - name: Run Trivy Vulnerability Scanner
-        uses: aquasecurity/trivy-action@v0.28.0
+      - name: Run Trivy Vulnerability Scanner (CLI)
         continue-on-error: true
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
+        run: mkdir -p reports; curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh -o /tmp/install-trivy.sh; sh /tmp/install-trivy.sh -b /usr/local/bin; trivy fs . --severity CRITICAL,HIGH --format sarif --output reports/trivy-results.sarif --exit-code 0
 
       - name: Upload Trivy Scan Results
         uses: actions/upload-artifact@v4
@@ -133,7 +114,7 @@ jobs:
         continue-on-error: true
         with:
           name: trivy-scan-report
-          path: trivy-results.sarif
+          path: reports/trivy-results.sarif
           if-no-files-found: warn
 
   # =============================================================================
@@ -190,68 +171,27 @@ jobs:
       contents: read
       packages: write
 
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
+        run: docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            BUILD_DATE=${{ github.event.head_commit.timestamp }}
-            VCS_REF=${{ github.sha }}
+        run: IMAGE_BASE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"; SHA_TAG="sha-${{ github.sha }}"; docker build --build-arg BUILD_DATE="${{ github.event.head_commit.timestamp }}" --build-arg VCS_REF="${{ github.sha }}" -t "$IMAGE_BASE:$SHA_TAG" .; docker push "$IMAGE_BASE:$SHA_TAG"; if [ "${{ github.ref }}" = "refs/heads/main" ]; then docker tag "$IMAGE_BASE:$SHA_TAG" "$IMAGE_BASE:latest"; docker push "$IMAGE_BASE:latest"; fi
 
-      - name: Run Trivy Image Scan
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: 'sarif'
-          output: 'trivy-image-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0'
+      - name: Run Trivy Image Scan (CLI)
         continue-on-error: true
+        run: mkdir -p reports; curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh -o /tmp/install-trivy.sh; sh /tmp/install-trivy.sh -b /usr/local/bin; IMAGE_BASE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"; SHA_TAG="sha-${{ github.sha }}"; trivy image "$IMAGE_BASE:$SHA_TAG" --severity CRITICAL,HIGH --format sarif --output reports/trivy-image-results.sarif --exit-code 0
 
       - name: Upload Trivy Image Scan Results
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
           name: trivy-image-scan-report
-          path: trivy-image-results.sarif
+          path: reports/trivy-image-results.sarif
           if-no-files-found: warn
 
   # =============================================================================
