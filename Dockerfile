@@ -26,6 +26,8 @@ RUN mvn clean package -DskipTests -B
 # -----------------------------------------------------------------------------
 FROM eclipse-temurin:21-jre-alpine
 
+RUN apk add --no-cache wget
+
 # Labels for documentation
 LABEL maintainer="Arpay Team"
 LABEL description="Arpay Notifications Microservice"
@@ -80,7 +82,7 @@ EXPOSE 8086
 # Do NOT use ${SERVER_PORT} here: if Coolify overrides SERVER_PORT the healthcheck
 # would chase the wrong port while the app still binds on 8086.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8086/actuator/health/liveness || exit 1
+    CMD sh -c 'wget --no-verbose --tries=1 --spider http://localhost:8086/actuator/health/liveness >/dev/null 2>&1; test $? -eq 0'
 
 # JVM security and performance options
 # -XX:+UseContainerSupport: Respect Docker memory/CPU limits
@@ -105,3 +107,4 @@ ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerSupport \
 
 # Entry point with graceful shutdown support
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_TOOL_OPTIONS -jar app.jar"]
+

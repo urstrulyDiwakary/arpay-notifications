@@ -90,9 +90,9 @@ Located in `worker/OutboxStartupRecovery.java` (implements `ApplicationRunner`).
 ### Internal API Authentication
 Located in `filter/InternalAuthFilter.java` and `service/InternalAuthService.java`.
 
-**How it works**: X-API-Key header validated against `INTERNAL_API_KEYS` (comma-separated hex strings in env). Protects write operations; reads permitted.
+**How it works**: X-API-Key header validated against `INTERNAL_API_KEYS` (comma-separated keys in env). Current security chain requires API key auth for all endpoints except `/actuator/**` and `/api/notifications/tokens/**`.
 
-**When modifying**: Only protect POST/PUT/PATCH/DELETE; GET/HEAD remain open.
+**When modifying**: Keep `SecurityConfig.requestMatchers(...).permitAll()` and `InternalAuthFilter.EXCLUDED_PATHS` aligned. The `internal.api.excluded-paths` property exists in config but path exclusion is currently hardcoded in `InternalAuthFilter`.
 
 ---
 
@@ -126,8 +126,10 @@ mvn spring-boot:run
 ```
 
 ### Key Maven Profiles
-- Default: Development profile (uses application.properties)
-- `production`: Production hardened config (from application-production.properties)
+- Default (no explicit profile): `application.properties`
+- `dev`: `application-dev.yml`
+- `prod`: `application-prod.yml`
+- `production`: `application-production.properties` (also used by Docker Compose default `SPRING_PROFILES_ACTIVE=production`)
 
 ### Database Migrations
 Located in `src/main/resources/db/migration/` (Flyway convention).
@@ -136,6 +138,8 @@ Located in `src/main/resources/db/migration/` (Flyway convention).
 - V3: Delivery idempotency keys
 - V4: Scheduled notifications support
 - V5: QUEUED outbox status, DLQ exponential backoff (`next_retry_at`), recovery indexes
+
+**Profile note**: `application-prod.yml` disables Flyway for shared-DB deployments (schema managed by backend migrations), while local/default flows still use the service migration files.
 
 ---
 
@@ -166,7 +170,7 @@ Located in `src/main/resources/db/migration/` (Flyway convention).
 
 ## Configuration Hierarchy
 
-**Environment Variable > application-{profile}.properties > application.properties**
+**Environment Variable > application-{profile}.yml/.properties > application.properties**
 
 ### Key Properties
 ```properties
@@ -198,6 +202,7 @@ notifications.recovery.batch-size=200
 # Firebase
 firebase.enabled=true
 firebase.service-account-key-path=classpath:firebase/firebase-service-account.json
+firebase.service-account-json-base64=
 
 # Database
 spring.jpa.properties.hibernate.jdbc.batch_size=50
@@ -236,6 +241,7 @@ spring.jpa.open-in-view=false
 ### Docker & Coolify
 - Multi-stage build in `Dockerfile` (Maven builder + JRE-alpine runtime; uses .dockerignore to exclude unnecessary files)
 - Environment-based configuration via `.env` file
+- Firebase credentials support both mounted file path and base64 env var (`FIREBASE_SERVICE_ACCOUNT_JSON_BASE64`) in `FirebaseConfig`
 - Healthcheck configured for container orchestration (liveness endpoint on port 8086)
 - Non-root user `appuser` for security
 - Docker Compose profiles: `standalone` (local PostgreSQL + Redis), `monitoring` (Prometheus + Grafana), `with-nginx`
@@ -247,6 +253,7 @@ REDIS_PASSWORD        # Redis password
 JWT_SECRET            # JWT signing secret (64+ chars)
 INTERNAL_API_KEYS     # Comma-separated API keys for internal auth
 FIREBASE_ENABLED      # true/false
+FIREBASE_SERVICE_ACCOUNT_JSON_BASE64  # Optional; preferred on Coolify instead of file mount
 ```
 
 ### Deployment Via Coolify
@@ -278,7 +285,7 @@ FIREBASE_ENABLED      # true/false
 
 ### Security Assumptions
 - Only backend service has valid `INTERNAL_API_KEYS`
-- Public endpoints (device tokens, read notifications) are open; POST/DELETE require API key
+- Only `/actuator/**` and `/api/notifications/tokens/**` are public; other endpoints require `X-API-Key`
 - CORS restricted to specific frontend domains
 - PostgreSQL and Redis are in private network (not internet-exposed)
 
