@@ -243,21 +243,16 @@ public class DeviceTokenController {
     }
 
     /**
-     * Delete all device tokens for a user (logout from all devices)
+     * Delete all device tokens for a user (logout / account deletion).
+     * NOTE: The user-existence check is intentionally omitted here so this
+     * endpoint works even after the user row has already been deleted from the
+     * shared `users` table. Callers (e.g. the backend's deleteUser flow) must
+     * be able to clean up device tokens for accounts that no longer exist.
      */
     @DeleteMapping
     public ResponseEntity<Map<String, Object>> deleteAllDeviceTokens(@RequestParam UUID userId) {
         try {
-            Optional<User> userOpt = userRepository.findById(userId);
-
-            if (userOpt.isEmpty()) {
-                Map<String, Object> error = new HashMap<>();
-                error.put("success", false);
-                error.put("error", "User not found: " + userId);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-            }
-
-            int deletedCount = deviceTokenRepository.deactivateAllTokensForUser(userId, "USER_LOGOUT");
+            int deletedCount = deviceTokenRepository.deactivateAllTokensForUser(userId, "USER_DELETED_OR_LOGOUT");
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -267,7 +262,7 @@ public class DeviceTokenController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("Failed to delete all device tokens: {}", e.getMessage());
+            log.error("Failed to delete all device tokens for userId={}: {}", userId, e.getMessage());
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
             error.put("error", e.getMessage());
