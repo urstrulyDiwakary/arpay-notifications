@@ -4,6 +4,7 @@ import com.arpay.filter.InternalAuthFilter;
 import com.arpay.filter.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,7 +17,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Spring Security configuration.
@@ -77,6 +77,32 @@ public class SecurityConfig {
             .addFilterBefore(internalAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * Prevent InternalAuthFilter (a @Component) from being auto-registered as a raw
+     * servlet filter by Spring Boot. It is intentionally managed exclusively inside the
+     * Spring Security filter chain via addFilterBefore() above.
+     *
+     * Without this, OncePerRequestFilter runs the filter once outside the security chain,
+     * marks the request as "already filtered", clears SecurityContextHolder in the finally
+     * block, and then Spring Security's AuthorizationFilter sees no Authentication → 403.
+     */
+    @Bean
+    public FilterRegistrationBean<InternalAuthFilter> internalAuthFilterRegistration(InternalAuthFilter filter) {
+        FilterRegistrationBean<InternalAuthFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    /**
+     * Same fix for RateLimitFilter — managed exclusively inside the Spring Security chain.
+     */
+    @Bean
+    public FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration(RateLimitFilter filter) {
+        FilterRegistrationBean<RateLimitFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean
