@@ -64,6 +64,8 @@ public class SecurityConfig {
             // Disabling it causes 403 on permitAll() endpoints because Spring Security
             // needs an anonymous Authentication token to evaluate permitAll().
             .authorizeHttpRequests(auth -> auth
+                // Root and /health for load-balancer / Coolify health probes (no API key needed)
+                .requestMatchers("/", "/health").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 // Token registration is public (used by frontend during login)
                 .requestMatchers("/api/notifications/tokens/**").permitAll()

@@ -42,6 +42,8 @@ public class InternalAuthFilter extends OncePerRequestFilter {
      * both "/api/notifications/tokens" and "/api/notifications/tokens/…".
      */
     private static final List<String> EXCLUDED_PATHS = List.of(
+        "/",
+        "/health",
         "/actuator",
         "/api/notifications/tokens"
     );
